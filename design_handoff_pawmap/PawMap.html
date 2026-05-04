@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PawMap SG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: #E8E8E4; font-family: 'Urbanist', system-ui, sans-serif; display: flex; align-items: center; justify-content: center; }
+  #root { display: flex; align-items: center; justify-content: center; min-height: 100vh; width: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+
+const { useState, useEffect, useRef } = React;
+
+// ─── DATA ───────────────────────────────────────────────────────────────────
+const VENUES = [
+{
+  id: 1,
+  name: "Strangers' Reunion",
+  neighbourhood: "Tanjong Pagar",
+  distance: "0.3 km",
+  isOpen: true,
+  type: "indoor",
+  verifiedDaysAgo: 12,
+  tags: ["Indoor seating", "Pet menu", "All dog sizes", "Air-conditioned"],
+  photo: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&q=80",
+  mapX: 52, mapY: 38,
+  rating: 4.8
+},
+{
+  id: 2,
+  name: "Nylon Coffee",
+  neighbourhood: "Everton Park",
+  distance: "0.6 km",
+  isOpen: true,
+  type: "indoor",
+  verifiedDaysAgo: 3,
+  tags: ["Indoor seating", "Small dogs only", "Air-conditioned"],
+  photo: "https://images.unsplash.com/photo-1453614512568-c4024d13c247?w=800&q=80",
+  mapX: 72, mapY: 28,
+  rating: 4.9
+},
+{
+  id: 3,
+  name: "The Assembly",
+  neighbourhood: "Keong Saik",
+  distance: "1.1 km",
+  isOpen: false,
+  type: "outdoor",
+  verifiedDaysAgo: 31,
+  tags: ["Outdoor seating", "Pet menu", "All dog sizes"],
+  photo: "https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=800&q=80",
+  mapX: 22, mapY: 46,
+  rating: 4.6
+},
+{
+  id: 4,
+  name: "Chye Seng Huat",
+  neighbourhood: "Lavender",
+  distance: "2.4 km",
+  isOpen: true,
+  type: "outdoor",
+  verifiedDaysAgo: 7,
+  tags: ["Outdoor seating", "Large dogs welcome", "Pet water bowls"],
+  photo: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&q=80",
+  mapX: 63, mapY: 18,
+  rating: 4.7
+},
+{
+  id: 5,
+  name: "Forty Hands",
+  neighbourhood: "Tiong Bahru",
+  distance: "1.8 km",
+  isOpen: true,
+  type: "indoor",
+  verifiedDaysAgo: 5,
+  tags: ["Indoor seating", "Pet menu", "Small & medium dogs", "Air-conditioned"],
+  photo: "https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=800&q=80",
+  mapX: 33, mapY: 62,
+  rating: 4.7
+}];
+
+
+// ─── SVG MAP ────────────────────────────────────────────────────────────────
+function SingaporeMap({ venues, activeFilter, selectedVenue, onPinTap }) {
+  const greenColor = "#22C55E";
+  const orangeColor = "#F97316";
+  const filteredIds = new Set(
+    venues.
+    filter((v) => {
+      if (activeFilter === "All") return true;
+      if (activeFilter === "Indoor") return v.type === "indoor";
+      if (activeFilter === "Outdoor") return v.type === "outdoor";
+      if (activeFilter === "Open Now") return v.isOpen;
+      if (activeFilter === "Pet Menu") return v.tags.some((t) => t.toLowerCase().includes("pet menu"));
+      return true;
+    }).
+    map((v) => v.id)
+  );
+
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: "block" }}>
+      {/* Map base */}
+      <rect width="100" height="100" fill="#EDF0EB" />
+
+      {/* Water / sea */}
+      <rect x="0" y="72" width="100" height="28" fill="#D6DFE8" />
+      <ellipse cx="50" cy="72" rx="55" ry="5" fill="#D6DFE8" />
+
+      {/* Island outline - simplified */}
+      <path d="M5,55 Q10,48 18,44 Q28,39 38,38 Q50,36 62,37 Q74,38 82,42 Q90,46 93,52 Q95,58 90,65 Q84,72 72,72 Q50,73 28,72 Q14,70 8,64 Z" fill="#E4E9E0" />
+
+      {/* Major roads */}
+      <line x1="20" y1="50" x2="85" y2="50" stroke="#FFFFFF" strokeWidth="1.2" />
+      <line x1="50" y1="38" x2="50" y2="72" stroke="#FFFFFF" strokeWidth="1.2" />
+      <line x1="25" y1="40" x2="75" y2="68" stroke="#FFFFFF" strokeWidth="0.7" strokeDasharray="0" />
+      <line x1="75" y1="40" x2="25" y2="68" stroke="#FFFFFF" strokeWidth="0.7" />
+
+      {/* Minor roads */}
+      <line x1="35" y1="38" x2="35" y2="72" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.6" />
+      <line x1="65" y1="38" x2="65" y2="72" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.6" />
+      <line x1="20" y1="42" x2="85" y2="42" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.6" />
+      <line x1="20" y1="60" x2="85" y2="60" stroke="#FFFFFF" strokeWidth="0.5" opacity="0.6" />
+
+      {/* Green patches */}
+      <ellipse cx="30" cy="55" rx="5" ry="3" fill="#C8D9C0" opacity="0.6" />
+      <ellipse cx="70" cy="55" rx="4" ry="2.5" fill="#C8D9C0" opacity="0.6" />
+
+      {/* User dot */}
+      <circle cx="50" cy="50" r="1.5" fill="#2563EB" />
+      <circle cx="50" cy="50" r="3" fill="#2563EB" opacity="0.18" />
+
+      {/* Venue pins */}
+      {venues.map((v) => {
+        const isFiltered = filteredIds.has(v.id);
+        const isSelected = selectedVenue?.id === v.id;
+        const color = v.type === "indoor" ? greenColor : orangeColor;
+        const opacity = isFiltered ? 1 : 0.25;
+        const scale = isSelected ? 1.15 : 1;
+
+        return (
+          <g
+            key={v.id}
+            transform={`translate(${v.mapX}, ${v.mapY}) scale(${scale})`}
+            style={{ cursor: "pointer", transition: "transform 0.15s ease" }}
+            onClick={() => isFiltered && onPinTap(v)}>
+            
+            {/* Shadow */}
+            <rect x="-12" y="-5" width={v.name.length * 1.9 + 10} height="10" rx="5" fill="rgba(0,0,0,0.08)" transform="translate(1,1)" opacity={opacity} />
+            {/* Pill */}
+            <rect x="-12" y="-5.5" width={v.name.length * 1.9 + 10} height="11" rx="5.5" fill={isSelected ? "#0A0A0A" : "#1A1A1A"} opacity={opacity} />
+            {/* Dot */}
+            <circle cx="-6.5" cy="0" r="2.2" fill={color} opacity={opacity} />
+            {/* Label */}
+            <text x="0" y="0.7" fontSize="3.8" fill="#FFFFFF" fontFamily="Urbanist, system-ui, sans-serif" fontWeight="500" letterSpacing="0" opacity={opacity}>{v.name}</text>
+          </g>);
+
+      })}
+    </svg>);
+
+}
+
+// ─── FILTER CHIPS ────────────────────────────────────────────────────────────
+function FilterChips({ active, onChange }) {
+  const filters = ["All", "Indoor ✓", "Outdoor", "Open Now", "Pet Menu"];
+  const keyMap = { "Indoor ✓": "Indoor" };
+
+  return (
+    <div style={{
+      position: "absolute",
+      bottom: 12,
+      left: 12,
+      right: 12,
+      display: "flex",
+      gap: 7,
+      overflowX: "auto",
+      scrollbarWidth: "none",
+      zIndex: 10
+    }}>
+      {filters.map((f) => {
+        const key = keyMap[f] || f;
+        const isActive = active === key;
+        return (
+          <button
+            key={f}
+            onClick={() => onChange(key)}
+            style={{
+              flexShrink: 0,
+              height: 34,
+              padding: "0 14px",
+              borderRadius: 17,
+              border: isActive ? "none" : "1px solid rgba(255,255,255,0.25)",
+              background: isActive ? "#0A0A0A" : "rgba(255,255,255,0.92)",
+              color: isActive ? "#FFFFFF" : "#1A1A1A",
+              fontSize: 13,
+              fontWeight: isActive ? 600 : 400,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+              letterSpacing: "-0.1px",
+              transition: "all 0.15s ease"
+            }}>
+            
+            {f}
+          </button>);
+
+      })}
+    </div>);
+
+}
+
+// ─── BOTTOM SHEET ────────────────────────────────────────────────────────────
+function BottomSheet({ venue, onClose, onSave, savedIds }) {
+  const [photoView, setPhotoView] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const startY = useRef(null);
+  const isSaved = savedIds.has(venue?.id);
+
+  useEffect(() => {
+    setPhotoView(false);
+    setDragY(0);
+  }, [venue?.id]);
+
+  if (!venue) return null;
+
+  const dotColor = venue.type === "indoor" ? "#22C55E" : "#F97316";
+
+  const handleTouchStart = (e) => {startY.current = e.touches[0].clientY;};
+  const handleTouchMove = (e) => {
+    const dy = e.touches[0].clientY - startY.current;
+    if (dy > 0) setDragY(Math.min(dy, 120));
+  };
+  const handleTouchEnd = () => {
+    if (dragY > 60) {onClose();}
+    setDragY(0);
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: "#FFFFFF",
+        borderRadius: "20px 20px 0 0",
+        boxShadow: "0 -4px 32px rgba(0,0,0,0.18)",
+        transform: `translateY(${dragY}px)`,
+        transition: dragY === 0 ? "transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)" : "none",
+        zIndex: 50,
+        overflow: "hidden"
+      }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}>
+      
+      {/* Drag handle */}
+      <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 0" }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: "#E0E0E0" }} />
+      </div>
+
+      {/* Photo area */}
+      {!photoView ?
+      <div style={{ position: "relative", margin: "12px 16px 0", borderRadius: 14, overflow: "hidden", height: 190 }}>
+          <img
+          src={venue.photo}
+          alt={venue.name}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          onError={(e) => {e.target.style.background = "#E8E8E4";e.target.style.display = "none";}} />
+        
+          {/* Indoor verified badge */}
+          {venue.type === "indoor" &&
+        <div style={{
+          position: "absolute", top: 10, left: 10,
+          background: "rgba(255,255,255,0.95)",
+          borderRadius: 20,
+          padding: "4px 10px",
+          display: "flex", alignItems: "center", gap: 5,
+          fontSize: 11.5, fontWeight: 600, color: "#1A1A1A",
+          boxShadow: "0 1px 6px rgba(0,0,0,0.12)"
+        }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#22C55E" }} />
+              Indoor verified
+            </div>
+        }
+          {/* Save button */}
+          <button
+          onClick={() => onSave(venue.id)}
+          style={{
+            position: "absolute", top: 10, right: 10,
+            width: 34, height: 34, borderRadius: "50%",
+            background: "rgba(255,255,255,0.95)",
+            border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 1px 6px rgba(0,0,0,0.12)",
+            fontSize: 17,
+            transition: "transform 0.15s ease"
+          }}>
+          
+            {isSaved ? "♥" : "♡"}
+          </button>
+        </div> :
+
+      <div style={{ margin: "12px 16px 0", borderRadius: 14, overflow: "hidden", background: "#F0F0EE" }}>
+          <div style={{ height: 190, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "#9A9A9A" }}>
+            <div style={{ fontSize: 28 }}>🐾</div>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>Indoor photo gallery</div>
+            <div style={{ fontSize: 11, color: "#BEBEBE" }}>3 photos on file</div>
+          </div>
+        </div>
+      }
+
+      {/* Content */}
+      <div style={{ padding: "14px 16px 0" }}>
+        {/* Verified line */}
+        <div style={{ fontSize: 11.5, color: "#9A9A9A", marginBottom: 6, fontWeight: 400 }}>
+          {venue.type === "indoor" ?
+          `Verified ${venue.verifiedDaysAgo} days ago · indoor photo on file` :
+          `Last checked ${venue.verifiedDaysAgo} days ago`
+          }
+        </div>
+
+        {/* Name */}
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", lineHeight: 1.2, marginBottom: 4, fontFamily: "Urbanist", letterSpacing: "0.5px" }}>
+          {venue.name}
+        </div>
+
+        {/* Meta row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6B6B6B", marginBottom: 12 }}>
+          <span>{venue.neighbourhood}</span>
+          <span style={{ color: "#D0D0D0" }}>·</span>
+          <span>{venue.distance} away</span>
+          <span style={{ color: "#D0D0D0" }}>·</span>
+          <span style={{ color: venue.isOpen ? "#22C55E" : "#EF4444", fontWeight: 600 }}>
+            {venue.isOpen ? "Open" : "Closed"}
+          </span>
+        </div>
+
+        {/* Tag pills */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 16 }}>
+          {venue.tags.map((tag) =>
+          <span key={tag} style={{
+            height: 30,
+            padding: "0 12px",
+            borderRadius: 15,
+            border: "1.5px solid #E8E8E4",
+            fontSize: 12,
+            fontWeight: 500,
+            color: "#3A3A3A",
+            display: "flex", alignItems: "center",
+            background: "#FAFAF9",
+            letterSpacing: "-0.1px"
+          }}>
+              {tag}
+            </span>
+          )}
+        </div>
+
+        {/* Buttons */}
+        <div style={{ display: "flex", gap: 10, paddingBottom: 16 }}>
+          <button style={{
+            flex: 1, height: 46, borderRadius: 12,
+            border: "1.5px solid #1A1A1A",
+            background: "#FFFFFF",
+            color: "#0A0A0A",
+            fontSize: 14, fontWeight: 600,
+            fontFamily: "inherit",
+            cursor: "pointer",
+            letterSpacing: "-0.2px",
+            transition: "background 0.12s"
+          }}
+          onMouseDown={(e) => e.currentTarget.style.background = "#F3F3F1"}
+          onMouseUp={(e) => e.currentTarget.style.background = "#FFFFFF"}>
+            
+            Directions
+          </button>
+          <button
+            onClick={() => setPhotoView(!photoView)}
+            style={{
+              flex: 1, height: 46, borderRadius: 12,
+              border: "none",
+              background: "#0A0A0A",
+              color: "#FFFFFF",
+              fontSize: 14, fontWeight: 600,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              letterSpacing: "-0.2px",
+              transition: "background 0.12s"
+            }}
+            onMouseDown={(e) => e.currentTarget.style.background = "#333"}
+            onMouseUp={(e) => e.currentTarget.style.background = "#0A0A0A"}>
+            
+            {photoView ? "Back to details" : "View indoor photos"}
+          </button>
+        </div>
+      </div>
+    </div>);
+
+}
+
+// ─── SAVED SCREEN ─────────────────────────────────────────────────────────
+function SavedScreen({ venues, savedIds, onVenueSelect, onUnsave }) {
+  const saved = venues.filter((v) => savedIds.has(v.id));
+  return (
+    <div style={{ flex: 1, overflowY: "auto", background: "#F7F7F5" }}>
+      <div style={{ padding: "16px 16px 4px", fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px", color: "#0A0A0A" }}>
+        Saved
+      </div>
+      {saved.length === 0 ?
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12, color: "#ABABAB" }}>
+          <div style={{ fontSize: 40 }}>🐾</div>
+          <div style={{ fontSize: 15, fontWeight: 500 }}>No saved venues yet</div>
+          <div style={{ fontSize: 13, color: "#C0C0C0", textAlign: "center", maxWidth: 200, lineHeight: 1.5 }}>
+            Tap the heart on any venue card to save it here
+          </div>
+        </div> :
+
+      <div style={{ padding: "8px 16px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {saved.map((v) =>
+        <div key={v.id} style={{ borderRadius: 16, overflow: "hidden", background: "#FFFFFF", boxShadow: "0 1px 8px rgba(0,0,0,0.07)", cursor: "pointer" }} onClick={() => onVenueSelect(v)}>
+              <div style={{ position: "relative", height: 140 }}>
+                <img src={v.photo} alt={v.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                {v.type === "indoor" &&
+            <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(255,255,255,0.95)", borderRadius: 20, padding: "3px 8px", display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 600 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22C55E" }} />
+                    Indoor verified
+                  </div>
+            }
+                <button onClick={(e) => {e.stopPropagation();onUnsave(v.id);}} style={{ position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,0.95)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>♥</button>
+              </div>
+              <div style={{ padding: "12px 14px 14px" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#0A0A0A", letterSpacing: "-0.3px" }}>{v.name}</div>
+                <div style={{ fontSize: 12.5, color: "#6B6B6B", marginTop: 3 }}>{v.neighbourhood} · {v.distance} away</div>
+              </div>
+            </div>
+        )}
+        </div>
+      }
+    </div>);
+
+}
+
+// ─── ADD PLACE SCREEN ─────────────────────────────────────────────────────
+function AddPlaceScreen() {
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState({ name: "", neighbourhood: "", type: "indoor", hasPetMenu: false, hasAC: false });
+
+  const fieldStyle = {
+    width: "100%", height: 46, borderRadius: 12,
+    border: "1.5px solid #E8E8E4",
+    padding: "0 14px",
+    fontSize: 14, fontFamily: "inherit",
+    color: "#0A0A0A",
+    background: "#FFFFFF",
+    outline: "none",
+    letterSpacing: "-0.1px"
+  };
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", background: "#F7F7F5" }}>
+      <div style={{ padding: "16px 16px 4px", fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px", color: "#0A0A0A" }}>
+        Add a Place
+      </div>
+      <div style={{ fontSize: 13, color: "#9A9A9A", padding: "0 16px 16px", lineHeight: 1.5 }}>
+        Help the community discover pet-friendly spots
+      </div>
+
+      {step === 0 &&
+      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#6B6B6B", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Venue Name</div>
+            <input style={fieldStyle} placeholder="e.g. Common Man Coffee" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#6B6B6B", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Neighbourhood</div>
+            <input style={fieldStyle} placeholder="e.g. Duxton Hill" value={form.neighbourhood} onChange={(e) => setForm((f) => ({ ...f, neighbourhood: e.target.value }))} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#6B6B6B", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>Seating Type</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {["indoor", "outdoor"].map((t) =>
+            <button key={t} onClick={() => setForm((f) => ({ ...f, type: t }))} style={{
+              flex: 1, height: 44, borderRadius: 12,
+              border: form.type === t ? "none" : "1.5px solid #E8E8E4",
+              background: form.type === t ? "#0A0A0A" : "#FFFFFF",
+              color: form.type === t ? "#FFFFFF" : "#3A3A3A",
+              fontFamily: "inherit", fontWeight: 600, fontSize: 13,
+              cursor: "pointer", textTransform: "capitalize"
+            }}>
+                  {t}
+                </button>
+            )}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {["Pet menu", "Air-conditioned"].map((tag) => {
+            const key = tag === "Pet menu" ? "hasPetMenu" : "hasAC";
+            return (
+              <button key={tag} onClick={() => setForm((f) => ({ ...f, [key]: !f[key] }))} style={{
+                flex: 1, height: 40, borderRadius: 20,
+                border: form[key] ? "none" : "1.5px solid #E8E8E4",
+                background: form[key] ? "#0A0A0A" : "#FFFFFF",
+                color: form[key] ? "#FFFFFF" : "#3A3A3A",
+                fontFamily: "inherit", fontWeight: 500, fontSize: 12.5,
+                cursor: "pointer"
+              }}>
+                  {tag}
+                </button>);
+
+          })}
+          </div>
+          <button
+          onClick={() => form.name && setStep(1)}
+          style={{
+            width: "100%", height: 50, borderRadius: 14,
+            background: form.name ? "#0A0A0A" : "#E0E0E0",
+            color: form.name ? "#FFFFFF" : "#A0A0A0",
+            border: "none", fontFamily: "inherit",
+            fontWeight: 700, fontSize: 15, cursor: form.name ? "pointer" : "default",
+            marginTop: 8, letterSpacing: "-0.2px"
+          }}>
+          
+            Continue →
+          </button>
+        </div>
+      }
+      {step === 1 &&
+      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 16, alignItems: "center" }}>
+          <div style={{ width: "100%", height: 180, borderRadius: 16, background: "#EEEEED", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, border: "1.5px dashed #D0D0D0", cursor: "pointer" }}>
+            <div style={{ fontSize: 30 }}>📷</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#6B6B6B" }}>Add cover photo</div>
+            <div style={{ fontSize: 12, color: "#ABABAB" }}>Exterior shot works best</div>
+          </div>
+          <button
+          onClick={() => setStep(2)}
+          style={{ width: "100%", height: 50, borderRadius: 14, background: "#0A0A0A", color: "#FFFFFF", border: "none", fontFamily: "inherit", fontWeight: 700, fontSize: 15, cursor: "pointer", letterSpacing: "-0.2px" }}>
+          
+            Submit for review
+          </button>
+          <button onClick={() => setStep(0)} style={{ background: "none", border: "none", fontSize: 13, color: "#9A9A9A", cursor: "pointer" }}>← Back</button>
+        </div>
+      }
+      {step === 2 &&
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 32px", gap: 14 }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#F0FAF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30 }}>✓</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", letterSpacing: "-0.4px", textAlign: "center" }}>Submitted!</div>
+          <div style={{ fontSize: 13.5, color: "#9A9A9A", textAlign: "center", lineHeight: 1.6, maxWidth: 220 }}>
+            {form.name || "Your venue"} has been submitted and will be reviewed within 48 hours.
+          </div>
+          <button onClick={() => {setStep(0);setForm({ name: "", neighbourhood: "", type: "indoor", hasPetMenu: false, hasAC: false });}} style={{ height: 44, padding: "0 24px", borderRadius: 22, background: "#0A0A0A", color: "#FFFFFF", border: "none", fontFamily: "inherit", fontWeight: 600, fontSize: 13, cursor: "pointer", marginTop: 8 }}>
+            Add another place
+          </button>
+        </div>
+      }
+    </div>);
+
+}
+
+// ─── BOTTOM NAV ────────────────────────────────────────────────────────────
+function BottomNav({ active, onChange }) {
+  const tabs = [
+  { key: "map", label: "Map", icon:
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+        <line x1="9" y1="3" x2="9" y2="18" /><line x1="15" y1="6" x2="15" y2="21" />
+      </svg>
+  },
+  { key: "saved", label: "Saved", icon:
+    <svg width="22" height="22" viewBox="0 0 24 24" fill={active === "saved" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+      </svg>
+  },
+  { key: "add", label: "Add Place", icon:
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" />
+      </svg>
+  }];
+
+
+  return (
+    <div style={{
+      height: 56,
+      background: "#FFFFFF",
+      borderTop: "1px solid #F0F0EE",
+      display: "flex",
+      alignItems: "center",
+      flexShrink: 0
+    }}>
+      {tabs.map((t) =>
+      <button
+        key={t.key}
+        onClick={() => onChange(t.key)}
+        style={{
+          flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          gap: 3, background: "none", border: "none", cursor: "pointer",
+          color: active === t.key ? "#0A0A0A" : "#AEAEAE",
+          fontFamily: "inherit", padding: 0,
+          transition: "color 0.15s"
+        }}>
+        
+          {t.icon}
+          <span style={{ fontSize: 10.5, fontWeight: active === t.key ? 600 : 400, letterSpacing: "-0.1px", fontFamily: "Urbanist" }}>{t.label}</span>
+        </button>
+      )}
+    </div>);
+
+}
+
+// ─── SEARCH BAR ──────────────────────────────────────────────────────────────
+function SearchBar() {
+  return (
+    <div style={{
+      position: "absolute", top: 10, left: 12, right: 12,
+      height: 44,
+      background: "rgba(255,255,255,0.96)",
+      borderRadius: 14,
+      display: "flex", alignItems: "center",
+      gap: 8,
+      padding: "0 12px 0 14px",
+      boxShadow: "0 2px 16px rgba(0,0,0,0.1)",
+      backdropFilter: "blur(8px)",
+      zIndex: 10
+    }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ABABAB" strokeWidth="2.5" strokeLinecap="round">
+        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
+      <span style={{ fontSize: 14, color: "#6B6B6B", flex: 1, letterSpacing: "-0.1px", fontFamily: "Urbanist" }}>Tanjong Pagar, Singapore</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ABABAB" strokeWidth="2" strokeLinecap="round">
+        <circle cx="12" cy="12" r="3" /><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+      </svg>
+    </div>);
+
+}
+
+// ─── MAIN APP ────────────────────────────────────────────────────────────────
+function PawMapApp() {
+  const [tab, setTab] = useState("map");
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [selectedVenue, setSelectedVenue] = useState(VENUES[0]);
+  const [savedIds, setSavedIds] = useState(new Set());
+
+  const handleSave = (id) => {
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleUnsave = (id) => {
+    setSavedIds((prev) => {const next = new Set(prev);next.delete(id);return next;});
+  };
+
+  const handleVenueFromSaved = (v) => {
+    setTab("map");
+    setTimeout(() => setSelectedVenue(v), 100);
+  };
+
+  const filteredVenues = VENUES.filter((v) => {
+    if (activeFilter === "All") return true;
+    if (activeFilter === "Indoor") return v.type === "indoor";
+    if (activeFilter === "Outdoor") return v.type === "outdoor";
+    if (activeFilter === "Open Now") return v.isOpen;
+    if (activeFilter === "Pet Menu") return v.tags.some((t) => t.toLowerCase().includes("pet menu"));
+    return true;
+  });
+
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column",
+      width: "100%", height: "100%",
+      background: "#F7F7F5",
+      borderRadius: "inherit",
+      overflow: "hidden",
+      position: "relative"
+    }}>
+      {/* MAP TAB */}
+      {tab === "map" &&
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+          {/* Map */}
+          <div style={{ position: "absolute", inset: 0 }}>
+            <SingaporeMap
+            venues={VENUES}
+            activeFilter={activeFilter}
+            selectedVenue={selectedVenue}
+            onPinTap={(v) => setSelectedVenue(v)} />
+          
+          </div>
+
+          {/* Search bar */}
+          <SearchBar />
+
+          {/* Filter chips anchored just above bottom sheet */}
+          <div style={{
+          position: "absolute",
+          bottom: selectedVenue ? 432 : 16,
+          left: 0, right: 0,
+          padding: "0 12px",
+          display: "flex", gap: 7,
+          overflowX: "auto",
+          scrollbarWidth: "none",
+          zIndex: 20,
+          transition: "bottom 0.35s cubic-bezier(0.32, 0.72, 0, 1)"
+        }}>
+            {["All", "Indoor ✓", "Outdoor", "Open Now", "Pet Menu"].map((f) => {
+            const key = f === "Indoor ✓" ? "Indoor" : f;
+            const isActive = activeFilter === key;
+            return (
+              <button key={f} onClick={() => setActiveFilter(key)} style={{
+                flexShrink: 0, height: 34, padding: "0 14px",
+                borderRadius: 17,
+                border: isActive ? "none" : "1px solid rgba(255,255,255,0.3)",
+                background: isActive ? "#0A0A0A" : "rgba(255,255,255,0.92)",
+                color: isActive ? "#FFFFFF" : "#1A1A1A",
+                fontSize: 13, fontWeight: isActive ? 600 : 400,
+                cursor: "pointer",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                letterSpacing: "-0.1px",
+                transition: "all 0.15s ease", fontFamily: "Urbanist"
+              }}>
+                  {f}
+                </button>);
+
+          })}
+          </div>
+
+          {/* Bottom sheet overlay */}
+          {selectedVenue &&
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "rgba(0,0,0,0)",
+          zIndex: 40,
+          pointerEvents: "none"
+        }}>
+              <div style={{ position: "absolute", inset: 0, pointerEvents: "auto" }}
+          onClick={() => setSelectedVenue(null)} />
+          
+            </div>
+        }
+          <BottomSheet
+          venue={selectedVenue}
+          onClose={() => setSelectedVenue(null)}
+          onSave={handleSave}
+          savedIds={savedIds} />
+        
+        </div>
+      }
+
+      {/* SAVED TAB */}
+      {tab === "saved" &&
+      <SavedScreen
+        venues={VENUES}
+        savedIds={savedIds}
+        onVenueSelect={handleVenueFromSaved}
+        onUnsave={handleUnsave} />
+
+      }
+
+      {/* ADD PLACE TAB */}
+      {tab === "add" && <AddPlaceScreen />}
+
+      {/* Bottom nav */}
+      <BottomNav active={tab} onChange={setTab} />
+    </div>);
+
+}
+
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
+const { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakRadio, TweakColor } = window;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(/*EDITMODE-BEGIN*/{
+    "showSheet": true,
+    "darkMode": false,
+    "accentStyle": "green-orange"
+  } /*EDITMODE-END*/);
+
+  return (
+    <>
+      <IOSDevice
+        width={393}
+        height={852}
+        dark={tweaks.darkMode}
+        title="PawMap">
+        
+        <PawMapApp />
+      </IOSDevice>
+
+      <TweaksPanel>
+        <TweakSection title="Map">
+          <TweakToggle label="Show venue sheet on load" value={tweaks.showSheet} onChange={(v) => setTweak("showSheet", v)} />
+        </TweakSection>
+        <TweakSection title="Theme">
+          <TweakRadio label="Pin colors" value={tweaks.accentStyle} options={["green-orange", "mono"]} onChange={(v) => setTweak("accentStyle", v)} />
+          <TweakToggle label="Dark mode" value={tweaks.darkMode} onChange={(v) => setTweak("darkMode", v)} />
+        </TweakSection>
+      </TweaksPanel>
+    </>);
+
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
