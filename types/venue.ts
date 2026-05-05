@@ -1,0 +1,20 @@
+export type Venue = {
+  id: number;
+  name: string;
+  city: string;
+  neighbourhood: string;
+  lat: number;
+  lng: number;
+  seating_type: 'indoor' | 'outdoor' | 'both';
+  cover_photo_url: string;
+  indoor_photo_url: string | null;
+  last_verified_date: string | null;
+  indoor_verified: boolean;
+  verifier_id: string;
+  pet_menu: boolean;
+  dog_sizes_allowed: 'small' | 'medium' | 'large' | 'all';
+  hours: Record<string, { open: string; close: string }>;
+  google_place_id: string;
+  is_active: boolean;
+  status: 'live' | 'pending' | 'expired';
+};

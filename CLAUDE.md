@@ -11,6 +11,7 @@ A mobile-first map app showing verified pet-friendly cafes and restaurants in Si
 - Start the app (Expo Go on phone): `npx expo start`
 - Install a new package: `npx expo install [package-name]` — always use this, never `npm install` for packages
 - Install all dependencies fresh: `npm install`
+- Lint: `npm run lint`
 
 **Preview**: Install "Expo Go" on your phone → run `npx expo start` → scan the QR code. The app hot-reloads on every save.
 
@@ -18,13 +19,18 @@ A mobile-first map app showing verified pet-friendly cafes and restaurants in Si
 
 ## Tech stack
 - **Framework**: React Native + Expo
-- **Styling**: NativeWind (Tailwind CSS for React Native)
-- **Maps**: react-native-maps (Google Maps or Apple Maps with custom desaturated style)
-- **Bottom sheet**: `@gorhom/bottom-sheet` — handles snap points and gesture physics natively
-- **Font**: `@expo-google-fonts/urbanist` via `expo-font`
-- **Backend/database**: Supabase (free tier)
+- **Routing**: `expo-router` (file-based, same idea as Next.js `app/` directory) ✅ installed
+- **Animations**: `react-native-reanimated` + `react-native-gesture-handler` ✅ installed
+- **Icons**: `@expo/vector-icons` — SF Symbols on iOS, Material Icons on Android/Web ✅ installed
+- **Images**: `expo-image` (use this instead of React Native's built-in `<Image>`) ✅ installed
+- **Styling**: NativeWind (Tailwind CSS for React Native) — not yet installed
+- **Maps**: react-native-maps (Google Maps or Apple Maps with custom desaturated style) ✅ installed
+- **Bottom sheet**: `@gorhom/bottom-sheet` v5 ✅ installed — requires `GestureHandlerRootView` at root (`app/_layout.tsx`)
+- **Font**: `@expo-google-fonts/urbanist` via `expo-font` — not yet installed
+- **Backend/database**: Supabase (free tier) — not yet installed
 - **Open now / hours**: Google Places API (via `google_place_id` field)
-- **Device saves (no login)**: AsyncStorage
+- **Location**: `expo-location` (GPS + permission request) ✅ installed
+- **Device saves (no login)**: AsyncStorage — not yet installed
 - **Auth**: Supabase Auth — Google SSO and Apple Sign In only, no email/password
 - **Email alerts**: Resend (Report a Change notifications to founder)
 - **Build/deploy**: Expo EAS Build (compiles for App Store + Google Play without local tooling)
@@ -58,9 +64,9 @@ Bottom sheet entrance and filter chip position: `translateY` / `bottom`, **350ms
 ---
 
 ## Screens to build (in order)
-- [ ] Map screen (main screen — build this first)
-- [ ] Filter chips (All / Indoor ✓ / Outdoor / Open Now / Pet Menu)
-- [ ] Venue card bottom sheet
+- [x] Map screen (main screen — built with dummy venues, no Supabase yet)
+- [x] Filter chips (All / Indoor ✓ / Outdoor / Open Now / Pet Menu)
+- [x] Venue card bottom sheet
 - [ ] Saved screen
 - [ ] Add a Place screen (submissions go to pending queue, not live map)
 - [ ] Report a Change button (triggers email to founder via Resend)
@@ -160,7 +166,39 @@ Beginner with no prior coding background — first app build. When giving instru
 ---
 
 ## Files and folders
-(Update this section as the project structure takes shape)
+
+Expo Router uses file-based routing — every file in `app/` becomes a route. Group folders like `(tabs)` are invisible in the URL. Platform-specific files use `.ios.tsx` / `.web.ts` suffixes and are auto-selected at build time. Import alias `@/*` resolves to the project root (e.g. `import { Colors } from '@/constants/theme'`).
+
+```
+app/
+  _layout.tsx           # Root Stack navigator + ThemeProvider (light/dark)
+  (tabs)/
+    _layout.tsx         # Bottom tab navigator — two placeholder tabs
+    index.tsx           # Home tab — Expo boilerplate, replace with Map screen
+    explore.tsx         # Explore tab — Expo boilerplate, replace or repurpose
+  modal.tsx             # Example modal route
+components/
+  ui/
+    collapsible.tsx     # Expandable section
+    icon-symbol.tsx     # Platform-split icons (.ios.tsx = SF Symbols, default = MaterialIcons)
+  hello-wave.tsx        # Boilerplate demo — delete when building real screens
+  parallax-scroll-view.tsx
+  haptic-tab.tsx        # Tab button with iOS haptic feedback — keep for tab navigator
+  themed-text.tsx       # Light/dark aware <Text>
+  themed-view.tsx       # Light/dark aware <View>
+  external-link.tsx
+constants/
+  theme.ts              # Colors.light / Colors.dark palette + platform font stacks
+hooks/
+  use-color-scheme.ts   # Detects light/dark preference
+  use-theme-color.ts    # Returns theme-aware color value
+assets/images/          # App icons and splash screens only
+```
 
 ## Known issues / gotchas
-(Add issues here as you discover them during the build)
+- `app/(tabs)/explore.tsx` is still Expo boilerplate — replace it entirely when building the Saved screen.
+- The custom map style (`customMapStyle` prop on MapView) only applies on Android/Google Maps. On iOS, Apple Maps ignores it and shows its default style. To apply the same style on iOS you need `PROVIDER_GOOGLE` and a Google Maps iOS API key — leave this for a later step.
+- Custom marker Views inside `<Marker>` on Android need TWO fixes to render:
+  1. `collapsable={false}` on the outermost View (Android's view-flattening optimisation otherwise removes it).
+  2. `tracksViewChanges` must start as `true` and only flip to `false` after the first frame. If it's `false` on initial render, Android captures a blank snapshot of the marker before it's laid out and bakes that blank image into the map. The pattern: keep it in state, flip via `setTimeout` in `useEffect`.
+- For production Android builds, a Google Maps API key is required in `app.json` under `android.config.googleMaps.apiKey`. Expo Go uses Expo's own key during development so it works without one.
