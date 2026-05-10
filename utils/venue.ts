@@ -28,6 +28,23 @@ export function getVerificationText(venue: Venue): string {
   return `Verified ${date}`;
 }
 
+export function getSeatingLabel(type: Venue['seating_type']): string {
+  switch (type) {
+    case 'indoor':  return 'Indoor';
+    case 'outdoor': return 'Outdoor';
+    case 'both':    return 'Indoor & Outdoor';
+  }
+}
+
+export function getDogSizeLabel(size: Venue['dog_sizes_allowed']): string {
+  switch (size) {
+    case 'small':  return 'Small dogs only';
+    case 'medium': return 'Small & medium dogs';
+    case 'large':  return 'Up to large dogs';
+    case 'all':    return 'All sizes welcome';
+  }
+}
+
 export function getPinColor(venue: Venue): string {
   if (isExpiredVenue(venue)) return '#ABABAB';
   if (isIndoorVerified(venue)) return '#22C55E';

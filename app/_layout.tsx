@@ -14,7 +14,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'expo-dev-client';
 import 'react-native-reanimated';
 
+import { SavedToast } from '@/components/SavedToast';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { SavedVenuesProvider } from '@/hooks/useSavedVenues';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,13 +43,16 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
+      <SavedVenuesProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+          </Stack>
+          <StatusBar style="auto" />
+          <SavedToast />
+        </ThemeProvider>
+      </SavedVenuesProvider>
     </GestureHandlerRootView>
   );
 }

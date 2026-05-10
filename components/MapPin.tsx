@@ -6,49 +6,30 @@ import type { Venue } from '@/types/venue';
 type Props = {
   venue: Venue;
   selected: boolean;
+  isExpired: boolean;
 };
 
-// Pill: 48 × 24. Tail: 6 × 6 diamond rotated 45°, tip protrudes ~4 px below pill bottom.
-//
-// SAFE_PAD: react-native-maps' Android marker captures the View into a Bitmap whose pixel
-// width comes from `(int) layoutWidth` — a float-to-int truncation in MapMarkerManager.java.
-// On non-integer-density devices this drops 1-N pixels off the right edge and clips the
-// pill. Wrapping the pill in a slightly larger transparent container moves that loss into
-// the buffer instead of onto the pill.
-//
-// No elevation/shadow: Android draws elevation shadows outside view bounds, which also
-// overflows the bitmap canvas. Hairline border gives depth instead.
+// SAFE_PAD: react-native-maps on Android captures the marker View into a Bitmap. On New
+// Architecture the canvas defaults to 100×100px (old-arch sizing path is bypassed). We patch
+// MapMarker.java to use getMeasuredWidth() instead, but keep SAFE_PAD as a transparent buffer
+// so any sub-pixel rounding never clips the pill edge.
 const PILL_W = 48;
 const PILL_H = 24;
-const TAIL = 6;
 const SAFE_PAD = 4;
 const CONTAINER_W = PILL_W + SAFE_PAD * 2; // 56
-const CONTAINER_H = PILL_H + TAIL - 2;     // 28: pill + tail tip protrusion
+const CONTAINER_H = PILL_H;               // 24
 
-export function MapPin({ venue, selected }: Props) {
-  const bubbleBg = selected ? '#0A0A0A' : '#FFFFFF';
-  const textColor = selected ? '#FFFFFF' : '#1A1A1A';
+export function MapPin({ venue, selected, isExpired }: Props) {
+  const bubbleBg    = selected ? '#0A0A0A' : '#FFFFFF';
+  const textColor   = selected ? '#FFFFFF' : '#1A1A1A';
   const borderColor = selected ? 'transparent' : 'rgba(0,0,0,0.08)';
+  const opacity     = isExpired && !selected ? 0.3 : 1;
 
   return (
     <View
-      style={{ width: CONTAINER_W, height: CONTAINER_H, backgroundColor: 'transparent' }}
+      style={{ width: CONTAINER_W, height: CONTAINER_H, backgroundColor: 'transparent', opacity }}
       collapsable={false}
     >
-      {/* Tail — behind pill so bubble covers the overlap */}
-      <View
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: (CONTAINER_W - TAIL) / 2,
-          width: TAIL,
-          height: TAIL,
-          transform: [{ rotate: '45deg' }],
-          backgroundColor: bubbleBg,
-        }}
-      />
-
-      {/* Pill — inset by SAFE_PAD on each horizontal side */}
       <View
         style={{
           position: 'absolute',

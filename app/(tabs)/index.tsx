@@ -7,6 +7,7 @@ import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
 import { VenueBottomSheet } from '@/components/VenueBottomSheet';
 import { DUMMY_VENUES } from '@/constants/dummyVenues';
+import { useSavedVenues } from '@/hooks/useSavedVenues';
 import { isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
 
@@ -45,10 +46,12 @@ function venueMatchesFilter(venue: Venue, filter: FilterKey): boolean {
 
 export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
+  const { isSaved, toggleSave } = useSavedVenues();
   const [showUserLocation, setShowUserLocation] = useState(false);
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('All');
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
+  const [currentRegion, setCurrentRegion] = useState(SINGAPORE_REGION);
 
   useEffect(() => {
     checkLocationPermission();
@@ -65,9 +68,19 @@ export default function MapScreen() {
 
   function handleMarkerPress(venue: Venue) {
     setSelectedVenue(venue);
-    // Re-enable view tracking briefly so Android captures the selected-state animation
     setTracksViewChanges(true);
     setTimeout(() => setTracksViewChanges(false), 600);
+    // Centre pin in the visible map area above the 55% bottom sheet
+    const offset = currentRegion.latitudeDelta * 0.275;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: venue.lat - offset,
+        longitude: venue.lng,
+        latitudeDelta: currentRegion.latitudeDelta,
+        longitudeDelta: currentRegion.longitudeDelta,
+      },
+      350
+    );
   }
 
   function handleSheetClose() {
@@ -127,13 +140,14 @@ export default function MapScreen() {
         showsCompass={false}
         showsPointsOfInterest={false}
         customMapStyle={MAP_STYLE}
-        onRegionChangeComplete={() => {
+        onRegionChangeComplete={(region) => {
+          setCurrentRegion(region);
           setTracksViewChanges(true);
           setTimeout(() => setTracksViewChanges(false), 600);
         }}
       >
         {DUMMY_VENUES
-          .filter(venue => venueMatchesFilter(venue, activeFilter) && !isExpiredVenue(venue))
+          .filter(venue => venueMatchesFilter(venue, activeFilter))
           .map(venue => (
             <Marker
               key={venue.id}
@@ -146,6 +160,7 @@ export default function MapScreen() {
               <MapPin
                 venue={venue}
                 selected={selectedVenue?.id === venue.id}
+                isExpired={isExpiredVenue(venue)}
               />
             </Marker>
           ))
@@ -154,7 +169,12 @@ export default function MapScreen() {
 
       <FilterChips active={activeFilter} onSelect={handleFilterSelect} />
 
-      <VenueBottomSheet venue={selectedVenue} onClose={handleSheetClose} />
+      <VenueBottomSheet
+        venue={selectedVenue}
+        onClose={handleSheetClose}
+        isSaved={selectedVenue ? isSaved(selectedVenue.id) : false}
+        onToggleSave={toggleSave}
+      />
     </View>
   );
 }

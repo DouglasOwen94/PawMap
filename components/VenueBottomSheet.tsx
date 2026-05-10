@@ -1,36 +1,22 @@
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Font } from '@/constants/fonts';
 
-import { getVerificationText, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
+import { getDogSizeLabel, getSeatingLabel, getVerificationText, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
-
-function getSeatingLabel(type: Venue['seating_type']): string {
-  switch (type) {
-    case 'indoor':  return 'Indoor';
-    case 'outdoor': return 'Outdoor';
-    case 'both':    return 'Indoor & Outdoor';
-  }
-}
-
-function getDogSizeLabel(size: Venue['dog_sizes_allowed']): string {
-  switch (size) {
-    case 'small':  return 'Small dogs only';
-    case 'medium': return 'Small & medium dogs';
-    case 'large':  return 'Up to large dogs';
-    case 'all':    return 'All sizes welcome';
-  }
-}
 
 type Props = {
   venue: Venue | null;
   onClose: () => void;
+  isSaved: boolean;
+  onToggleSave: (venue: Venue) => void;
 };
 
-export function VenueBottomSheet({ venue, onClose }: Props) {
+export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Props) {
   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['55%'], []);
 
@@ -67,6 +53,18 @@ export function VenueBottomSheet({ venue, onClose }: Props) {
                 contentFit="cover"
                 transition={400}
               />
+              <TouchableOpacity
+                style={styles.heartButton}
+                onPress={() => onToggleSave(venue)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons
+                  name={isSaved ? 'heart' : 'heart-outline'}
+                  size={20}
+                  color={isSaved ? '#EF4444' : '#1A1A1A'}
+                />
+              </TouchableOpacity>
             </View>
 
             <View style={[styles.body, { paddingBottom: insets.bottom + 20 }]}>
@@ -75,6 +73,14 @@ export function VenueBottomSheet({ venue, onClose }: Props) {
                 <View style={styles.badgeRow}>
                   <View style={styles.verifiedDot} />
                   <Text style={styles.badgeText}>Indoor Verified</Text>
+                </View>
+              )}
+
+              {/* Expired badge — shown when verification has lapsed */}
+              {expired && (
+                <View style={styles.badgeRow}>
+                  <View style={[styles.verifiedDot, { backgroundColor: '#ABABAB' }]} />
+                  <Text style={[styles.badgeText, { color: '#ABABAB' }]}>Verification Expired</Text>
                 </View>
               )}
 
@@ -139,6 +145,22 @@ const styles = StyleSheet.create({
     height: 200,
     backgroundColor: '#F7F7F5',
     overflow: 'hidden',
+  },
+  heartButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
 
   // Body
