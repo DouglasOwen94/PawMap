@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"IS_NEW_ARCHITECTURE_ENABLED\\\\|BuildConfig\" \"c:\\\\Users\\\\Douglas Lee\\\\Documents\\\\PawMap\\\\node_modules\\\\react-native-maps\\\\android\\\\src\\\\main\\\\java\\\\com\\\\rnmaps\\\\maps\" 2>nul | head -10)",
+      "Bash(eas --version)",
+      "Bash(eas whoami *)",
+      "Bash(eas build:configure)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies['expo-dev-client'] || 'NOT INSTALLED'\\)\")",
+      "Bash(npx patch-package *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Douglas Lee\\Documents\\PawMap"
+    ]
+  }
+}

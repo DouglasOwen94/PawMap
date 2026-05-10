@@ -26,7 +26,7 @@ A mobile-first map app showing verified pet-friendly cafes and restaurants in Si
 - **Styling**: NativeWind (Tailwind CSS for React Native) — not yet installed
 - **Maps**: react-native-maps (Google Maps or Apple Maps with custom desaturated style) ✅ installed
 - **Bottom sheet**: `@gorhom/bottom-sheet` v5 ✅ installed — requires `GestureHandlerRootView` at root (`app/_layout.tsx`)
-- **Font**: `@expo-google-fonts/urbanist` via `expo-font` — not yet installed
+- **Font**: `@expo-google-fonts/urbanist` via `expo-font` ✅ installed — font names live in `constants/fonts.ts`. Always use `fontFamily: Font.bold` etc. instead of `fontWeight` — custom fonts in React Native require the weight baked into the family name.
 - **Backend/database**: Supabase (free tier) — not yet installed
 - **Open now / hours**: Google Places API (via `google_place_id` field)
 - **Location**: `expo-location` (GPS + permission request) ✅ installed

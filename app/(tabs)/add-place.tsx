@@ -1,4 +1,5 @@
 import { SafeAreaView, StyleSheet, Text } from 'react-native';
+import { Font } from '@/constants/fonts';
 
 export default function AddPlaceScreen() {
   return (
@@ -17,6 +18,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 15,
+    fontFamily: Font.regular,
     color: '#ABABAB',
   },
 });

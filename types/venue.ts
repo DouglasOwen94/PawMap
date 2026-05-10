@@ -1,6 +1,7 @@
 export type Venue = {
   id: number;
   name: string;
+  rating?: number;
   city: string;
   neighbourhood: string;
   lat: number;

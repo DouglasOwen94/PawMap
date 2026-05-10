@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Font } from '@/constants/fonts';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -92,7 +93,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: Font.medium,
     color: '#1A1A1A',
   },
   labelActive: {

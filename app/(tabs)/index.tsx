@@ -7,7 +7,7 @@ import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
 import { VenueBottomSheet } from '@/components/VenueBottomSheet';
 import { DUMMY_VENUES } from '@/constants/dummyVenues';
-import { getPinColor, isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
+import { isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
 
 const SINGAPORE_REGION = {
@@ -52,7 +52,8 @@ export default function MapScreen() {
 
   useEffect(() => {
     checkLocationPermission();
-    const timer = setTimeout(() => setTracksViewChanges(false), 1000);
+    // 3 s gives Android time to load network images before freezing the bitmap
+    const timer = setTimeout(() => setTracksViewChanges(false), 3000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -64,6 +65,9 @@ export default function MapScreen() {
 
   function handleMarkerPress(venue: Venue) {
     setSelectedVenue(venue);
+    // Re-enable view tracking briefly so Android captures the selected-state animation
+    setTracksViewChanges(true);
+    setTimeout(() => setTracksViewChanges(false), 600);
   }
 
   function handleSheetClose() {
@@ -123,22 +127,29 @@ export default function MapScreen() {
         showsCompass={false}
         showsPointsOfInterest={false}
         customMapStyle={MAP_STYLE}
+        onRegionChangeComplete={() => {
+          setTracksViewChanges(true);
+          setTimeout(() => setTracksViewChanges(false), 600);
+        }}
       >
-        {DUMMY_VENUES.map((venue) => {
-          const matches = venueMatchesFilter(venue, activeFilter);
-          const expired = isExpiredVenue(venue);
-          return (
+        {DUMMY_VENUES
+          .filter(venue => venueMatchesFilter(venue, activeFilter) && !isExpiredVenue(venue))
+          .map(venue => (
             <Marker
               key={venue.id}
               coordinate={{ latitude: venue.lat, longitude: venue.lng }}
               tracksViewChanges={tracksViewChanges}
-              tappable={matches && !expired}
               onPress={() => handleMarkerPress(venue)}
+              anchor={{ x: 0.5, y: 1 }}
+              style={{ backgroundColor: 'transparent' }}
             >
-              <MapPin color={getPinColor(venue)} opacity={matches ? 1 : 0.25} />
+              <MapPin
+                venue={venue}
+                selected={selectedVenue?.id === venue.id}
+              />
             </Marker>
-          );
-        })}
+          ))
+        }
       </MapView>
 
       <FilterChips active={activeFilter} onSelect={handleFilterSelect} />

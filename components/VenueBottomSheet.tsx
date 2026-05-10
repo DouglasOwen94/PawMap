@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Font } from '@/constants/fonts';
 
 import { getVerificationText, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: Font.semiBold,
     color: '#22C55E',
     letterSpacing: 0.3,
   },
@@ -169,11 +170,12 @@ const styles = StyleSheet.create({
   // Name & meta
   name: {
     fontSize: 20,
-    fontWeight: '700',
+    fontFamily: Font.bold,
     color: '#0A0A0A',
   },
   meta: {
     fontSize: 14,
+    fontFamily: Font.regular,
     color: '#6B6B6B',
   },
 
@@ -193,12 +195,14 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 12,
+    fontFamily: Font.regular,
     color: '#6B6B6B',
   },
 
   // Verification date
   verifiedDate: {
     fontSize: 12,
+    fontFamily: Font.regular,
     color: '#6B6B6B',
     marginTop: 2,
   },
@@ -217,7 +221,7 @@ const styles = StyleSheet.create({
   },
   reportButtonText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: Font.medium,
     color: '#1A1A1A',
   },
 });

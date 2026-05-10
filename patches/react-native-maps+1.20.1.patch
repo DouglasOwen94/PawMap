@@ -1,0 +1,15 @@
+diff --git a/node_modules/react-native-maps/android/src/main/java/com/rnmaps/maps/MapMarker.java b/node_modules/react-native-maps/android/src/main/java/com/rnmaps/maps/MapMarker.java
+index b755f9b..9375a86 100644
+--- a/node_modules/react-native-maps/android/src/main/java/com/rnmaps/maps/MapMarker.java
++++ b/node_modules/react-native-maps/android/src/main/java/com/rnmaps/maps/MapMarker.java
+@@ -522,8 +522,8 @@ public class MapMarker extends MapFeature {
+   }
+ 
+   private Bitmap createDrawable() {
+-    int width = this.width <= 0 ? 100 : this.width;
+-    int height = this.height <= 0 ? 100 : this.height;
++    int width  = getMeasuredWidth()  > 0 ? getMeasuredWidth()  : (this.width  <= 0 ? 100 : this.width);
++    int height = getMeasuredHeight() > 0 ? getMeasuredHeight() : (this.height <= 0 ? 100 : this.height);
+     this.buildDrawingCache();
+ 
+     // Do not create the doublebuffer-bitmap each time. reuse it to save memory.
