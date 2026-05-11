@@ -16,6 +16,7 @@ import 'react-native-reanimated';
 
 import { SavedToast } from '@/components/SavedToast';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AdminAuthProvider } from '@/hooks/useAdminAuth';
 import { SavedVenuesProvider } from '@/hooks/useSavedVenues';
 
 SplashScreen.preventAutoHideAsync();
@@ -43,16 +44,22 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <AdminAuthProvider>
       <SavedVenuesProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+            <Stack.Screen
+              name="admin-approve"
+              options={{ title: 'Review submission', headerBackTitle: 'Back' }}
+            />
           </Stack>
           <StatusBar style="auto" />
           <SavedToast />
         </ThemeProvider>
       </SavedVenuesProvider>
+      </AdminAuthProvider>
     </GestureHandlerRootView>
   );
 }

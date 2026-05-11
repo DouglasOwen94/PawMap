@@ -6,7 +6,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, type MapPressEvent } from 'react-native-maps';
 import { Font } from '@/constants/fonts';
 
@@ -93,6 +93,7 @@ function ChipRow<T extends string | number | boolean>({
 export default function AddPlaceScreen() {
   const { showToast } = useSavedVenues();
   const mapRef = useRef<MapView>(null);
+
   const [form, setForm] = useState<AddPlaceForm>(INITIAL_FORM);
   const [errors, setErrors] = useState<Set<FieldKey>>(new Set());
   const [showUserLocation, setShowUserLocation] = useState(false);
@@ -198,7 +199,7 @@ export default function AddPlaceScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
@@ -350,9 +351,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#F7F7F5',
   },
   scrollContent: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 40,
     gap: 16,
+  },
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   header: {
     fontSize: 22,
@@ -487,6 +493,69 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: '#FFFFFF',
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    gap: 12,
+    alignItems: 'stretch',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontFamily: Font.bold,
+    color: '#0A0A0A',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  pinInput: {
+    backgroundColor: '#F7F7F5',
+    borderWidth: 1,
+    borderColor: '#E8E8E4',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 20,
+    fontFamily: Font.medium,
+    color: '#0A0A0A',
+    textAlign: 'center',
+    letterSpacing: 6,
+  },
+  pinInputError: {
+    borderColor: '#EF4444',
+  },
+  pinErrorText: {
+    fontSize: 13,
+    fontFamily: Font.regular,
+    color: '#EF4444',
+    textAlign: 'center',
+  },
+  unlockBtn: {
+    backgroundColor: '#0A0A0A',
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  unlockBtnText: {
+    fontSize: 15,
+    fontFamily: Font.semiBold,
+    color: '#FFFFFF',
+  },
+  cancelText: {
+    fontSize: 14,
+    fontFamily: Font.medium,
+    color: '#6B6B6B',
+    textAlign: 'center',
+    paddingVertical: 4,
   },
 });
 

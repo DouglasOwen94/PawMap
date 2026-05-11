@@ -1,8 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { Font } from '@/constants/fonts';
-import { DUMMY_VENUES } from '@/constants/dummyVenues';
+import { supabase } from '@/lib/supabase';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
 import { getDogSizeLabel, getSeatingLabel, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
@@ -84,10 +87,24 @@ function EmptyState() {
 
 export default function SavedScreen() {
   const { isSaved, toggleSave } = useSavedVenues();
-  const savedVenues = DUMMY_VENUES.filter(v => isSaved(v.id));
+  const [allVenues, setAllVenues] = useState<Venue[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      supabase
+        .from('venues')
+        .select('*')
+        .eq('status', 'live')
+        .then(({ data }) => {
+          if (data) setAllVenues(data as Venue[]);
+        });
+    }, [])
+  );
+
+  const savedVenues = allVenues.filter(v => isSaved(v.id));
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Saved</Text>
       </View>
@@ -157,14 +174,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 3,
   },
   cardBody: {
     paddingHorizontal: 14,

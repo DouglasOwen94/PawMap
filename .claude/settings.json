@@ -6,7 +6,8 @@
       "Bash(eas whoami *)",
       "Bash(eas build:configure)",
       "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies['expo-dev-client'] || 'NOT INSTALLED'\\)\")",
-      "Bash(npx patch-package *)"
+      "Bash(npx patch-package *)",
+      "Bash(Remove-Item -Path \"c:\\\\Users\\\\Douglas Lee\\\\Documents\\\\PawMap\\\\app\\\\\\(tabs\\)\\\\admin\" -Recurse -Force)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Douglas Lee\\Documents\\PawMap"

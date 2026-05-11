@@ -1,7 +1,8 @@
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import { useFocusEffect } from 'expo-router';
 
 import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
@@ -57,17 +58,22 @@ export default function MapScreen() {
 
   useEffect(() => {
     checkLocationPermission();
-    // 3 s gives Android time to load network images before freezing the bitmap
-    const timer = setTimeout(() => setTracksViewChanges(false), 3000);
-    supabase
-      .from('venues')
-      .select('*')
-      .eq('status', 'live')
-      .then(({ data, error }) => {
-        if (!error && data) setVenues(data as Venue[]);
-      });
-    return () => clearTimeout(timer);
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      // 3 s gives Android time to load network images before freezing the bitmap
+      const timer = setTimeout(() => setTracksViewChanges(false), 3000);
+      supabase
+        .from('venues')
+        .select('*')
+        .eq('status', 'live')
+        .then(({ data, error }) => {
+          if (!error && data) setVenues(data as Venue[]);
+        });
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   function handleFilterSelect(filter: FilterKey) {
     setActiveFilter(filter);
