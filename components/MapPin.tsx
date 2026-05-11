@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 
 import { Font } from '@/constants/fonts';
@@ -45,9 +46,13 @@ export function MapPin({ venue, selected, isExpired }: Props) {
           justifyContent: 'center',
         }}
       >
-        <Text style={{ fontFamily: Font.medium, fontSize: 14, color: textColor }}>
-          {typeof venue.rating === 'number' ? venue.rating.toFixed(1) : '—'}
-        </Text>
+        {typeof venue.rating === 'number' ? (
+          <Text style={{ fontFamily: Font.medium, fontSize: 14, color: textColor }}>
+            {venue.rating.toFixed(1)}
+          </Text>
+        ) : (
+          <Ionicons name="paw" size={14} color={textColor} />
+        )}
       </View>
     </View>
   );

@@ -1,5 +1,7 @@
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useSavedVenues } from '@/hooks/useSavedVenues';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -89,6 +91,7 @@ function ChipRow<T extends string | number | boolean>({
 }
 
 export default function AddPlaceScreen() {
+  const { showToast } = useSavedVenues();
   const mapRef = useRef<MapView>(null);
   const [form, setForm] = useState<AddPlaceForm>(INITIAL_FORM);
   const [errors, setErrors] = useState<Set<FieldKey>>(new Set());
@@ -165,27 +168,33 @@ export default function AddPlaceScreen() {
     mapRef.current?.animateToRegion(SINGAPORE_REGION, 400);
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const next = validate(form);
     if (next.size > 0) {
       setErrors(next);
       Alert.alert('Missing info', 'Please complete the required fields marked in red.');
       return;
     }
-    console.log('[AddPlace] submission payload:', {
-      name: form.name.trim(),
-      neighbourhood: form.neighbourhood.trim() || null,
-      lat: form.location!.lat,
-      lng: form.location!.lng,
-      seating_type: form.seating,
+    const { error } = await supabase.from('venues').insert({
+      name:              form.name.trim(),
+      city:              'Singapore',
+      neighbourhood:     form.neighbourhood.trim() || null,
+      lat:               form.location!.lat,
+      lng:               form.location!.lng,
+      seating_type:      form.seating,
       dog_sizes_allowed: form.dogSize,
-      pet_menu: form.petMenu,
-      notes: form.notes.trim() || null,
-      status: 'pending',
+      pet_menu:          form.petMenu!,
+      notes:             form.notes.trim() || null,
+      status:            'pending',
+      indoor_verified:   false,
     });
-    Alert.alert('Submitted', "We'll verify this in person.", [
-      { text: 'OK', onPress: resetForm },
-    ]);
+    if (error) {
+      Alert.alert('Something went wrong', 'Please try again.');
+      console.error('[AddPlace] Supabase error:', error.message);
+      return;
+    }
+    showToast("Thanks! We'll verify this in person.");
+    resetForm();
   }
 
   return (

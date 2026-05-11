@@ -6,7 +6,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
 import { VenueBottomSheet } from '@/components/VenueBottomSheet';
-import { DUMMY_VENUES } from '@/constants/dummyVenues';
+import { supabase } from '@/lib/supabase';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
 import { isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
@@ -31,6 +31,7 @@ function venueMatchesFilter(venue: Venue, filter: FilterKey): boolean {
     case 'Outdoor':
       return venue.seating_type === 'outdoor' || venue.seating_type === 'both';
     case 'Open Now': {
+      if (!venue.hours) return false;
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       const hours = venue.hours[dayNames[new Date().getDay()]];
       if (!hours) return false;
@@ -47,6 +48,7 @@ function venueMatchesFilter(venue: Venue, filter: FilterKey): boolean {
 export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
   const { isSaved, toggleSave } = useSavedVenues();
+  const [venues, setVenues] = useState<Venue[]>([]);
   const [showUserLocation, setShowUserLocation] = useState(false);
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('All');
@@ -57,6 +59,13 @@ export default function MapScreen() {
     checkLocationPermission();
     // 3 s gives Android time to load network images before freezing the bitmap
     const timer = setTimeout(() => setTracksViewChanges(false), 3000);
+    supabase
+      .from('venues')
+      .select('*')
+      .eq('status', 'live')
+      .then(({ data, error }) => {
+        if (!error && data) setVenues(data as Venue[]);
+      });
     return () => clearTimeout(timer);
   }, []);
 
@@ -146,7 +155,7 @@ export default function MapScreen() {
           setTimeout(() => setTracksViewChanges(false), 600);
         }}
       >
-        {DUMMY_VENUES
+        {venues
           .filter(venue => venueMatchesFilter(venue, activeFilter))
           .map(venue => (
             <Marker

@@ -6,13 +6,13 @@ export const VERIFIED_DAYS = 60;
 
 export function isExpiredVenue(venue: Venue): boolean {
   if (venue.status === 'expired') return true;
-  if (!venue.last_verified_date) return true;
+  if (!venue.last_verified_date) return false;
   const age = (Date.now() - new Date(venue.last_verified_date).getTime()) / MS_PER_DAY;
   return age > EXPIRY_DAYS;
 }
 
 export function isIndoorVerified(venue: Venue): boolean {
-  if (!venue.indoor_verified || !venue.indoor_photo_url || !venue.last_verified_date) return false;
+  if (!venue.indoor_verified || !venue.last_verified_date) return false;
   const age = (Date.now() - new Date(venue.last_verified_date).getTime()) / MS_PER_DAY;
   return age <= VERIFIED_DAYS;
 }

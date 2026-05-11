@@ -7,6 +7,7 @@ const STORAGE_KEY = 'pawmap_saved_ids';
 type SavedVenuesContextValue = {
   isSaved: (id: number) => boolean;
   toggleSave: (venue: Venue) => void;
+  showToast: (message: string) => void;
   toastMessage: string | null;
   clearToast: () => void;
 };
@@ -47,10 +48,11 @@ export function SavedVenuesProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const showToast = useCallback((message: string) => setToastMessage(message), []);
   const clearToast = useCallback(() => setToastMessage(null), []);
 
   return (
-    <SavedVenuesContext.Provider value={{ isSaved, toggleSave, toastMessage, clearToast }}>
+    <SavedVenuesContext.Provider value={{ isSaved, toggleSave, showToast, toastMessage, clearToast }}>
       {children}
     </SavedVenuesContext.Provider>
   );
