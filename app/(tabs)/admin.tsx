@@ -113,20 +113,7 @@ export default function AdminScreen() {
               }
             >
               <View style={styles.cardBody}>
-                <View style={styles.nameRow}>
-                  <Text style={styles.venueName} numberOfLines={1}>{item.name}</Text>
-                  <View style={[
-                    styles.badge,
-                    item.status === 'pending' ? styles.badgePending : styles.badgeLive,
-                  ]}>
-                    <Text style={[
-                      styles.badgeText,
-                      item.status === 'pending' ? styles.badgeTextPending : styles.badgeTextLive,
-                    ]}>
-                      {item.status === 'pending' ? 'Pending' : 'Live'}
-                    </Text>
-                  </View>
-                </View>
+                <Text style={styles.venueName} numberOfLines={1}>{item.name}</Text>
                 <Text style={styles.venueMeta}>
                   {[item.neighbourhood, SEATING_LABEL[item.seating_type]]
                     .filter(Boolean)
@@ -137,6 +124,17 @@ export default function AdminScreen() {
                     "{item.notes}"
                   </Text>
                 ) : null}
+              </View>
+              <View style={[
+                styles.badge,
+                item.status === 'pending' ? styles.badgePending : styles.badgeLive,
+              ]}>
+                <Text style={[
+                  styles.badgeText,
+                  item.status === 'pending' ? styles.badgeTextPending : styles.badgeTextLive,
+                ]}>
+                  {item.status === 'pending' ? 'Pending' : 'Live'}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#ABABAB" />
             </TouchableOpacity>
@@ -204,10 +202,9 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 15, fontFamily: Font.regular, color: '#ABABAB' },
   list: { paddingHorizontal: 20 },
   separator: { height: 1, backgroundColor: '#E8E8E4' },
-  card: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
+  card: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 10 },
   cardBody: { flex: 1, gap: 4 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  venueName: { fontSize: 15, fontFamily: Font.semiBold, color: '#0A0A0A', flex: 1 },
+  venueName: { fontSize: 15, fontFamily: Font.semiBold, color: '#0A0A0A' },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 2,

@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this app is
-A mobile-first map app showing verified pet-friendly cafes and restaurants in Singapore. Users filter by indoor/outdoor seating, open now, and pet menu. Each venue has a professional cover photo and an indoor pet-seating verification photo. The "Indoor Verified" badge only shows if `indoor_verified` is `true` AND `indoor_photo_url` exists AND `last_verified_date` is within 60 days.
+A mobile-first map app showing verified pet-friendly cafes and restaurants in Singapore. Users filter by indoor/outdoor seating, open now, and pet menu. The "Indoor Verified" badge shows if `indoor_verified` is `true` AND `last_verified_date` is within 60 days (photo not required for badge).
 
 ---
 
@@ -12,6 +12,7 @@ A mobile-first map app showing verified pet-friendly cafes and restaurants in Si
 - Install a new package: `npx expo install [package-name]` — always use this, never `npm install` for packages
 - Install all dependencies fresh: `npm install`
 - Lint: `npm run lint`
+- **Admin dashboard** (web, desktop only): open `dashboard/index.html` directly in Chrome — no server needed. Founder prefers this over the raw Supabase table UI.
 
 **Preview**: Install "Expo Go" on your phone → run `npx expo start` → scan the QR code. The app hot-reloads on every save.
 
@@ -27,12 +28,12 @@ A mobile-first map app showing verified pet-friendly cafes and restaurants in Si
 - **Maps**: react-native-maps (Google Maps or Apple Maps with custom desaturated style) ✅ installed
 - **Bottom sheet**: `@gorhom/bottom-sheet` v5 ✅ installed — requires `GestureHandlerRootView` at root (`app/_layout.tsx`)
 - **Font**: `@expo-google-fonts/urbanist` via `expo-font` ✅ installed — font names live in `constants/fonts.ts`. Always use `fontFamily: Font.bold` etc. instead of `fontWeight` — custom fonts in React Native require the weight baked into the family name.
-- **Backend/database**: Supabase (free tier) — not yet installed
-- **Open now / hours**: Google Places API (via `google_place_id` field)
+- **Backend/database**: Supabase ✅ connected — client in `lib/supabase.ts`, credentials in `.env`
+- **Open now / hours**: Google Places API (via `google_place_id` field) — NOT YET BUILT. Place ID is stored but no API call is made yet.
 - **Location**: `expo-location` (GPS + permission request) ✅ installed
-- **Device saves (no login)**: AsyncStorage — not yet installed
-- **Auth**: Supabase Auth — Google SSO and Apple Sign In only, no email/password
-- **Email alerts**: Resend (Report a Change notifications to founder)
+- **Device saves (no login)**: AsyncStorage ✅ installed — used in `hooks/useSavedVenues.tsx`
+- **Auth**: Supabase Auth — Google SSO and Apple Sign In only, no email/password — NOT YET BUILT
+- **Email alerts**: Resend (Report a Change notifications to founder) — NOT YET BUILT
 - **Build/deploy**: Expo EAS Build (compiles for App Store + Google Play without local tooling)
 
 ---
@@ -63,14 +64,17 @@ Bottom sheet entrance and filter chip position: `translateY` / `bottom`, **350ms
 
 ---
 
-## Screens to build (in order)
-- [x] Map screen (main screen — built with dummy venues, no Supabase yet)
+## Screens status
+
+- [x] Map screen — live Supabase data, refreshes on tab focus
 - [x] Filter chips (All / Indoor ✓ / Outdoor / Open Now / Pet Menu)
 - [x] Venue card bottom sheet
-- [ ] Saved screen
-- [ ] Add a Place screen (submissions go to pending queue, not live map)
+- [x] Saved screen — pulls from Supabase, filtered by AsyncStorage saved IDs
+- [x] Add a Place screen — submissions go to Supabase as `status: pending`
+- [x] Admin dashboard — PIN-gated tab (PIN in `EXPO_PUBLIC_ADMIN_PIN`), pending + live venue management
 - [ ] Report a Change button (triggers email to founder via Resend)
 - [ ] Login screen (Google SSO + Apple Sign In)
+- [ ] Google Places API integration (Open Now filter + ratings)
 
 ---
 
@@ -84,17 +88,18 @@ type Venue = {
   lat: number;
   lng: number;
   seating_type: "indoor" | "outdoor" | "both";
-  cover_photo_url: string;
+  cover_photo_url: string | null;     // null until founder uploads photo
   indoor_photo_url: string | null;
-  last_verified_date: string | null;
-  indoor_verified: boolean;   // true only if last_verified_date is within 60 days
-  verifier_id: string;        // who verified — supports future community verifier team
+  last_verified_date: string | null;  // null = not yet dated, not the same as expired
+  indoor_verified: boolean;
+  verifier_id: string | null;
   pet_menu: boolean;
   dog_sizes_allowed: "small" | "medium" | "large" | "all";
-  hours: Record<string, { open: string; close: string }>;
-  google_place_id: string;    // for live open/closed status
+  hours: Record<string, { open: string; close: string }> | null;  // null until Google Places wired up
+  google_place_id: string | null;     // stored but not yet used to call any API
   is_active: boolean;
-  status: "live" | "pending" | "expired";
+  status: "live" | "pending" | "rejected" | "expired";
+  rating?: number;                    // placeholder — wire up from Google Places later
 };
 ```
 
@@ -102,55 +107,91 @@ type Venue = {
 
 ## Product decisions
 
+### Verification flow
+- Founder only approves a venue **after physically visiting** — approval = verified
+- On approve: `status → live`, `last_verified_date → today` (auto-set), `indoor_verified` set by founder
+- No photo required for the Indoor Verified badge — `indoor_verified: true` + `last_verified_date` within 60 days is enough
+- Photos (`cover_photo_url`, `indoor_photo_url`) are added by founder separately after approval
+
+### Verification expiry
+- A venue with `last_verified_date = null` is **not expired** — it's just not yet dated (pin shows normally)
+- After 90 days since `last_verified_date`: pin goes grey, non-tappable
+- Venue card must say "Verification expired — last verified [date]"
+- Greyed-out pins must never show the Indoor Verified badge
+
 ### Map behaviour
 - Opens centred on user's current location automatically; request permission with a friendly explanation on first open
 - If permission denied, fall back to Singapore-centred default view
-
-### Verification expiry
-- After 90 days without re-verification: badge disappears, pin turns greyed out (still listed, non-tappable)
-- Venue card must say "Verification expired — last verified [date]"
-- Greyed-out pins must **never** show the Indoor Verified badge
+- Venues reload from Supabase every time the Map tab is focused
 
 ### User submissions
-- Submissions go to a pending queue in Supabase — NOT live on the map
-- Only appear after the founder verifies in person
-- Confirmation: "Thanks! We'll verify this in person and add it soon."
+- Submissions go to Supabase as `status: pending` — NOT live on the map
+- Only appear after founder approves in the Admin tab
+- Confirmation toast: "Thanks! We'll verify this in person."
+
+### Admin dashboard
+- Accessible via the Admin tab in the nav bar
+- PIN-gated: enter `EXPO_PUBLIC_ADMIN_PIN` from `.env` to unlock (persists in AsyncStorage)
+- Lock button at the bottom of the admin list
+- Shows pending + live venues; pending sorted first
+- Tapping a venue opens the review/edit screen:
+  - Pending: shows Approve & publish + Reject buttons
+  - Live: shows Save changes button
+- `last_verified_date` is auto-stamped to today on approve or save
 
 ### Report a Change
 - Every venue card has a Report a Change button — sends email to founder via Resend
-- Venue is NOT hidden automatically; founder reviews and decides
+- NOT YET BUILT — currently shows a placeholder alert
 
 ### User accounts
 - No account needed to browse, report, or submit
 - Account required only to save favourites (heart a venue)
-- Without login: saves use AsyncStorage (device-local, lost if app deleted)
-- With login: favourites sync across devices
+- Without login: saves use AsyncStorage (device-local, lost if app deleted) ✅ implemented
+- With login: favourites sync across devices (requires auth — not yet built)
 
 ### Geography
 - v1: Singapore only; v2 targets KL and JB
 - `city` field is required on every venue record — never hardcode "Singapore"
+
+### Google Place ID
+- Stored in Supabase but not yet connected to any API
+- Will eventually power: Open Now filter + live ratings
+- To find a Place ID: search the venue on Google Maps and use the Place ID Finder tool
 
 ---
 
 ## Key rules — always follow these
 1. Build one screen at a time.
 2. Use React Native components only — `View`, `Text`, `ScrollView`, etc. Never HTML tags.
-3. Never show the Indoor Verified badge unless `indoor_verified` is `true` AND `indoor_photo_url` exists.
+3. Never show the Indoor Verified badge unless `indoor_verified` is `true` AND `last_verified_date` is within 60 days.
 4. `last_verified_date` must always be visible on the venue card — never hidden.
 5. Keep components small with one job each.
 6. Do not add features not in the build list above — ask first.
 7. When in doubt, do less.
 8. Every venue record must include a `city` field.
+9. Always use `SafeAreaView` from `react-native-safe-area-context` (not from `react-native`) with `edges={['top']}` on tab screens.
+10. Never use `elevation` on heart/icon buttons — use `borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)'` instead to avoid Android octagon shadow bug.
+
+---
+
+## Supabase RLS policies (venues table)
+- `Anyone can read live venues` — SELECT, condition filters to `status = 'live'`
+- `Admin can read all venues` — SELECT, condition `true` (allows admin to read pending/live)
+- `Public can submit venues` — INSERT
+- `Admin can update venues` — UPDATE, condition `true`
 
 ---
 
 ## Implementation gotchas
-- **Map custom style**: Use a desaturated/minimal map style matching `#EDF0EB` land, `#D6DFE8` water, white roads. Mapbox GL is an alternative to react-native-maps for finer style control.
+- **Map custom style**: Use a desaturated/minimal map style matching `#EDF0EB` land, `#D6DFE8` water, white roads.
 - **Bottom sheet**: `@gorhom/bottom-sheet` is strongly recommended — handles drag-to-dismiss and snap points far better than custom implementations.
 - **Photo loading**: Add skeleton loaders for cover photos — the minimal aesthetic breaks if images flash in.
 - **Indoor Verified is the core trust signal**: The green dot + badge must be prominent and visually consistent across all surfaces (map sheet, saved list cards).
 - **Filter chip "Indoor ✓"** maps to filter key `"Indoor"` in code.
 - **Non-matching pins** when a filter is active: 25% opacity, non-tappable.
+- **Custom marker Views inside `<Marker>` on Android** need two fixes: `collapsable={false}` on outermost View, and `tracksViewChanges` starts `true` then flips to `false` after first frame via `setTimeout`.
+- **Android map style**: `customMapStyle` only works on Android/Google Maps. iOS Apple Maps ignores it — needs `PROVIDER_GOOGLE` + Google Maps iOS API key for parity.
+- **`useFocusEffect`**: Use this instead of `useEffect` for data fetching on tab screens so data reloads when switching back to a tab.
 
 ---
 
@@ -167,38 +208,33 @@ Beginner with no prior coding background — first app build. When giving instru
 
 ## Files and folders
 
-Expo Router uses file-based routing — every file in `app/` becomes a route. Group folders like `(tabs)` are invisible in the URL. Platform-specific files use `.ios.tsx` / `.web.ts` suffixes and are auto-selected at build time. Import alias `@/*` resolves to the project root (e.g. `import { Colors } from '@/constants/theme'`).
-
 ```
 app/
-  _layout.tsx           # Root Stack navigator + ThemeProvider (light/dark)
+  _layout.tsx              # Root Stack — wraps AdminAuthProvider + SavedVenuesProvider
+  admin-approve.tsx        # Venue review/edit screen (pushed from Admin tab)
   (tabs)/
-    _layout.tsx         # Bottom tab navigator — two placeholder tabs
-    index.tsx           # Home tab — Expo boilerplate, replace with Map screen
-    explore.tsx         # Explore tab — Expo boilerplate, replace or repurpose
-  modal.tsx             # Example modal route
+    _layout.tsx            # Bottom tab navigator (4 tabs: Map, Saved, Add Place, Admin)
+    index.tsx              # Map screen — live Supabase venues, filters, bottom sheet
+    saved.tsx              # Saved screen — Supabase venues filtered by AsyncStorage IDs
+    add-place.tsx          # Submission form → Supabase pending queue
+    admin.tsx              # Admin tab — PIN gate + pending/live venue list
 components/
+  FilterChips.tsx          # Filter pill row (All / Indoor ✓ / Outdoor / Open Now / Pet Menu)
+  MapPin.tsx               # Map marker — white pill with paw icon or rating
+  VenueBottomSheet.tsx     # Venue detail sheet (name, tags, verified badge, save button)
+  SavedToast.tsx           # Black pill toast notification (used for save + submission confirm)
+  haptic-tab.tsx           # Tab button with iOS haptic feedback
   ui/
-    collapsible.tsx     # Expandable section
-    icon-symbol.tsx     # Platform-split icons (.ios.tsx = SF Symbols, default = MaterialIcons)
-  hello-wave.tsx        # Boilerplate demo — delete when building real screens
-  parallax-scroll-view.tsx
-  haptic-tab.tsx        # Tab button with iOS haptic feedback — keep for tab navigator
-  themed-text.tsx       # Light/dark aware <Text>
-  themed-view.tsx       # Light/dark aware <View>
-  external-link.tsx
+    icon-symbol.tsx        # Platform-split icons
 constants/
-  theme.ts              # Colors.light / Colors.dark palette + platform font stacks
+  fonts.ts                 # Font family name constants (Font.bold, Font.medium, etc.)
 hooks/
-  use-color-scheme.ts   # Detects light/dark preference
-  use-theme-color.ts    # Returns theme-aware color value
-assets/images/          # App icons and splash screens only
+  useSavedVenues.tsx       # Context: saved IDs (AsyncStorage) + toast trigger
+  useAdminAuth.tsx         # Context: admin PIN unlock state (AsyncStorage)
+lib/
+  supabase.ts              # Supabase client (uses EXPO_PUBLIC_* env vars)
+types/
+  venue.ts                 # Venue type definition
+utils/
+  venue.ts                 # isExpiredVenue, isIndoorVerified, getPinColor, label helpers
 ```
-
-## Known issues / gotchas
-- `app/(tabs)/explore.tsx` is still Expo boilerplate — replace it entirely when building the Saved screen.
-- The custom map style (`customMapStyle` prop on MapView) only applies on Android/Google Maps. On iOS, Apple Maps ignores it and shows its default style. To apply the same style on iOS you need `PROVIDER_GOOGLE` and a Google Maps iOS API key — leave this for a later step.
-- Custom marker Views inside `<Marker>` on Android need TWO fixes to render:
-  1. `collapsable={false}` on the outermost View (Android's view-flattening optimisation otherwise removes it).
-  2. `tracksViewChanges` must start as `true` and only flip to `false` after the first frame. If it's `false` on initial render, Android captures a blank snapshot of the marker before it's laid out and bakes that blank image into the map. The pattern: keep it in state, flip via `setTimeout` in `useEffect`.
-- For production Android builds, a Google Maps API key is required in `app.json` under `android.config.googleMaps.apiKey`. Expo Go uses Expo's own key during development so it works without one.
