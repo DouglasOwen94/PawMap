@@ -2,7 +2,8 @@ import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Font } from '@/constants/fonts';
 
@@ -31,6 +32,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   const insets   = useSafeAreaInsets();
   const verified = venue ? isIndoorVerified(venue) : false;
   const expired  = venue ? isExpiredVenue(venue)    : false;
+  const SCREEN_W = Dimensions.get('window').width;
 
   return (
     <BottomSheet
@@ -45,27 +47,58 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
       <BottomSheetView style={styles.content}>
         {venue && (
           <>
-            {/* Cover photo — grey background acts as skeleton while image loads */}
-            <View style={styles.photoContainer}>
-              <Image
-                source={{ uri: venue.cover_photo_url }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                transition={400}
-              />
-              <TouchableOpacity
-                style={styles.heartButton}
-                onPress={() => onToggleSave(venue)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons
-                  name={isSaved ? 'heart' : 'heart-outline'}
-                  size={20}
-                  color={isSaved ? '#EF4444' : '#1A1A1A'}
-                />
-              </TouchableOpacity>
-            </View>
+            {/* Photo gallery — swipeable if both cover and indoor photos exist */}
+            {(() => {
+              const photos = [
+                { uri: venue.cover_photo_url, label: null },
+                { uri: venue.indoor_photo_url, label: 'Indoor' },
+              ].filter(p => !!p.uri) as { uri: string; label: string | null }[];
+              return (
+                <View style={styles.photoContainer}>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    scrollEnabled={photos.length > 1}
+                  >
+                    {photos.map((photo, i) => (
+                      <View key={i} style={{ width: SCREEN_W, height: 200 }}>
+                        <Image
+                          source={{ uri: photo.uri }}
+                          style={StyleSheet.absoluteFillObject}
+                          contentFit="cover"
+                          transition={400}
+                        />
+                        {photo.label && (
+                          <View style={styles.photoLabel}>
+                            <Text style={styles.photoLabelText}>{photo.label}</Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </ScrollView>
+                  {photos.length > 1 && (
+                    <View style={styles.dotsRow}>
+                      {photos.map((_, i) => (
+                        <View key={i} style={styles.dot} />
+                      ))}
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={styles.heartButton}
+                    onPress={() => onToggleSave(venue)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons
+                      name={isSaved ? 'heart' : 'heart-outline'}
+                      size={20}
+                      color={isSaved ? '#EF4444' : '#1A1A1A'}
+                    />
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
 
             <View style={[styles.body, { paddingBottom: insets.bottom + 20 }]}>
               {/* Indoor Verified badge — only shown when all 3 conditions are met */}
@@ -102,6 +135,11 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 <View style={styles.tag}>
                   <Text style={styles.tagText}>{getDogSizeLabel(venue.dog_sizes_allowed)}</Text>
                 </View>
+                {Array.isArray(venue.tags) && venue.tags.map(tag => (
+                  <View key={tag} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
               </View>
 
               {/* Verification date — always visible per product rules */}
@@ -145,6 +183,35 @@ const styles = StyleSheet.create({
     height: 200,
     backgroundColor: '#F7F7F5',
     overflow: 'hidden',
+  },
+  photoLabel: {
+    position: 'absolute',
+    bottom: 28,
+    left: 12,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  photoLabelText: {
+    fontSize: 11,
+    fontFamily: Font.semiBold,
+    color: '#FFFFFF',
+  },
+  dotsRow: {
+    position: 'absolute',
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.85)',
   },
   heartButton: {
     position: 'absolute',

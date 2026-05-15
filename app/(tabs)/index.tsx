@@ -24,7 +24,7 @@ function venueMatchesFilter(venue: Venue, filter: FilterKey): boolean {
     case 'All':
       return true;
     case 'Indoor': {
-      if (!venue.indoor_verified || !venue.indoor_photo_url || !venue.last_verified_date) return false;
+      if (!venue.indoor_verified || !venue.last_verified_date) return false;
       if (isExpiredVenue(venue)) return false;
       const age = (Date.now() - new Date(venue.last_verified_date).getTime()) / MS_PER_DAY;
       return age <= VERIFIED_DAYS;

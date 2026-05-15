@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { AddPlaceTabIcon, MapTabIcon, SavedTabIcon } from '@/components/TabIcons';
 
 export default function TabLayout() {
   return (
@@ -22,28 +22,21 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Map',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="map.fill" color={color} />,
+          tabBarIcon: ({ color }) => <MapTabIcon color={color} size={24} />,
         }}
       />
       <Tabs.Screen
         name="saved"
         options={{
           title: 'Saved',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="heart.fill" color={color} />,
+          tabBarIcon: ({ color }) => <SavedTabIcon color={color} size={24} />,
         }}
       />
       <Tabs.Screen
         name="add-place"
         options={{
           title: 'Add Place',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="plus.circle.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="admin"
-        options={{
-          title: 'Admin',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="shield.fill" color={color} />,
+          tabBarIcon: ({ color }) => <AddPlaceTabIcon color={color} size={24} />,
         }}
       />
     </Tabs>

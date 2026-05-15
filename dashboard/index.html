@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PawMap Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #0D0D0D;
+      --surface:      #1A1A1A;
+      --surface2:     #222222;
+      --surface3:     #2A2A2A;
+      --border:       #2E2E2E;
+      --border2:      #3A3A3A;
+      --text:         #F0F0EE;
+      --text2:        #888888;
+      --text3:        #555555;
+      --green:        #22C55E;
+      --green-bg:     rgba(34,197,94,0.12);
+      --green-border: rgba(34,197,94,0.25);
+      --orange:       #F97316;
+      --orange-bg:    rgba(249,115,22,0.12);
+      --orange-border:rgba(249,115,22,0.25);
+      --red:          #EF4444;
+      --red-bg:       rgba(239,68,68,0.12);
+      --red-border:   rgba(239,68,68,0.25);
+    }
+
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
+
+    body { background: #080808; min-height: 100vh; display: flex; justify-content: center; }
+
+    #app {
+      width: 100%; max-width: 1080px;
+      height: 100vh;
+      display: flex; flex-direction: column;
+      background: var(--surface);
+      box-shadow: 0 0 0 1px var(--border), 0 8px 40px rgba(0,0,0,0.6);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Toggle switch */
+    .toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--border2); border-radius: 24px; cursor: pointer; transition: 0.2s; }
+    .toggle-slider:before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: var(--text2); border-radius: 50%; transition: 0.2s; }
+    input:checked + .toggle-slider { background: var(--green); }
+    input:checked + .toggle-slider:before { transform: translateX(20px); background: white; }
+
+    /* Edit panel */
+    .edit-panel { transition: transform 350ms cubic-bezier(0.32, 0.72, 0, 1); }
+
+    /* Inputs */
+    .input-field {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--border2); border-radius: 10px;
+      font-size: 14px; color: var(--text); background: var(--surface2);
+      outline: none; transition: border-color 0.15s;
+      -webkit-appearance: none;
+    }
+    .input-field:focus { border-color: var(--text2); }
+    .input-field::placeholder { color: var(--text3); }
+    select.input-field {
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+    }
+    select.input-field option { background: var(--surface2); color: var(--text); }
+
+    /* Buttons */
+    .btn-primary { background: var(--text); color: #0A0A0A; font-size: 14px; font-weight: 600; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; transition: opacity 0.15s; border: none; }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-secondary { background: var(--surface2); color: var(--text); font-size: 14px; font-weight: 500; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; transition: background 0.15s; border: 1px solid var(--border2); }
+    .btn-secondary:hover { background: var(--surface3); }
+    .btn-danger { background: var(--surface2); color: var(--red); font-size: 14px; font-weight: 500; padding: 12px 16px; border-radius: 12px; cursor: pointer; transition: background 0.15s; border: 1px solid var(--border2); flex-shrink: 0; }
+    .btn-danger:hover { background: var(--red-bg); border-color: var(--red-border); }
+
+    /* Photo upload */
+    .photo-upload-area {
+      border: 1.5px dashed var(--border2); border-radius: 10px;
+      padding: 14px; text-align: center; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s; color: var(--text2); font-size: 13px;
+    }
+    .photo-upload-area:hover { border-color: var(--text2); background: var(--surface2); }
+
+    .progress-bar { height: 3px; background: var(--border2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+    .progress-fill { height: 100%; background: var(--text); border-radius: 3px; transition: width 0.3s; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+    .venue-card { transition: border-color 0.15s, background 0.15s; }
+    .venue-card:hover { border-color: var(--border2) !important; background: var(--surface2) !important; }
+
+    /* Label helper */
+    .field-label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+
+    /* Modal */
+    #csv-modal { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+    #csv-modal.open { display: flex; }
+    #csv-modal-box {
+      background: var(--surface); border: 1px solid var(--border2); border-radius: 16px;
+      width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto;
+      padding: 28px; display: flex; flex-direction: column; gap: 20px;
+    }
+
+    /* CSV preview table */
+    .csv-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .csv-table th { text-align: left; padding: 6px 10px; color: var(--text2); font-weight: 600; border-bottom: 1px solid var(--border); }
+    .csv-table td { padding: 6px 10px; color: var(--text); border-bottom: 1px solid var(--border); }
+    .csv-table tr:last-child td { border-bottom: none; }
+
+    /* Sidebar btn base */
+    .sidebar-btn { text-align: left; padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; width: 100%; transition: background 0.15s; background: none; color: var(--text2); }
+    .sidebar-btn:hover { background: var(--surface2); }
+    .sidebar-btn.active { background: var(--text); color: #0A0A0A; }
+    .sidebar-btn.active:hover { background: var(--text); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <header style="border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:20px;">🐾</span>
+      <span style="font-weight:700;font-size:16px;color:var(--text);">PawMap Admin</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div id="stats" style="display:flex;align-items:center;gap:8px;"></div>
+      <button onclick="openCsvModal()"
+        style="padding:7px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s;"
+        onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">
+        ↑ Import CSV
+      </button>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div style="display:flex;flex:1;overflow:hidden;position:relative;background:var(--bg);">
+
+    <!-- Sidebar -->
+    <aside style="width:200px;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px;gap:3px;flex-shrink:0;background:var(--surface);">
+      <p style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding:0 8px;">Venues</p>
+      <button onclick="setFilter('all')"      id="filter-all"      class="sidebar-btn"></button>
+      <button onclick="setFilter('pending')"  id="filter-pending"  class="sidebar-btn"></button>
+      <button onclick="setFilter('live')"     id="filter-live"     class="sidebar-btn"></button>
+      <button onclick="setFilter('rejected')" id="filter-rejected" class="sidebar-btn"></button>
+      <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
+      <button onclick="showTagsView()" id="nav-tags" class="sidebar-btn">🏷️ &nbsp;Manage Tags</button>
+    </aside>
+
+    <!-- Main -->
+    <main id="main-content" style="flex:1;overflow-y:auto;padding:24px;"></main>
+
+    <!-- Edit panel -->
+    <div id="edit-panel" class="edit-panel"
+      style="position:absolute;top:0;right:0;height:100%;width:420px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 32px rgba(0,0,0,0.4);overflow-y:auto;transform:translateX(100%);z-index:50;">
+    </div>
+
+    <!-- Overlay -->
+    <div id="overlay" onclick="closePanel()"
+      style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.4);z-index:40;">
+    </div>
+  </div>
+
+  <!-- CSV Modal -->
+  <div id="csv-modal">
+    <div id="csv-modal-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <h2 style="font-weight:700;font-size:18px;color:var(--text);">Import CSV</h2>
+          <p style="font-size:13px;color:var(--text2);margin-top:3px;">Add multiple venues at once from a spreadsheet.</p>
+        </div>
+        <button onclick="closeCsvModal()"
+          style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"
+          onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">✕</button>
+      </div>
+
+      <!-- Template download -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <p style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">Need a template?</p>
+          <p style="font-size:12px;color:var(--text2);">Download the CSV template with the correct column headers.</p>
+        </div>
+        <button onclick="downloadTemplate()"
+          style="padding:8px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface3);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;"
+          onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--surface3)'">
+          ↓ Download
+        </button>
+      </div>
+
+      <!-- File drop -->
+      <div>
+        <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(this)">
+        <div class="photo-upload-area" style="padding:28px;" onclick="document.getElementById('csv-file-input').click()">
+          <p style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px;">Click to choose a CSV file</p>
+          <p style="font-size:12px;color:var(--text2);">or drag and drop</p>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div id="csv-preview" style="display:none;">
+        <p id="csv-preview-label" style="font-size:13px;color:var(--text2);margin-bottom:10px;"></p>
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+          <table class="csv-table" id="csv-preview-table"></table>
+        </div>
+        <div id="csv-errors" style="display:none;margin-top:10px;"></div>
+        <button id="csv-import-btn" onclick="importCsv()" class="btn-primary" style="margin-top:16px;"></button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── Config ────────────────────────────────────────────────────
+  const SUPABASE_URL    = 'https://padjppknqnvnrqndpdrk.supabase.co';
+  const SUPABASE_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhZGpwcGtucW52bnJxbmRwZHJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTQ1MDMsImV4cCI6MjA5NDA3MDUwM30.dZTVwf7EYyC9XM3M8vKYtyvblkLPcl8F9tiZOn4T0JI';
+  const STORAGE_BUCKET  = 'venue-photos';
+  const CSV_COLUMNS     = ['name','city','neighbourhood','lat','lng','seating_type','pet_menu','dog_sizes_allowed','is_active','status','indoor_verified','last_verified_date','google_place_id','notes'];
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // ── State ─────────────────────────────────────────────────────
+  let venues = [];
+  let amenityTags = [];
+  let activeFilter = 'all';
+  let selectedVenue = null;
+  let currentView = 'venues';
+  let csvRows = [];
+
+  const SEATING_LABEL = { indoor: 'Indoor', outdoor: 'Outdoor', both: 'Indoor & Outdoor' };
+
+  // ── Init ──────────────────────────────────────────────────────
+  async function init() {
+    showLoading();
+    await Promise.all([loadVenues(), loadTags()]);
+    renderAll();
+  }
+
+  function showLoading() {
+    document.getElementById('main-content').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;height:240px;color:var(--text2);font-size:14px;gap:8px;">
+        <svg style="animation:spin 1s linear infinite;width:16px;height:16px;" fill="none" viewBox="0 0 24 24">
+          <circle style="opacity:0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path style="opacity:0.75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+        Loading…
+      </div>`;
+  }
+
+  async function loadVenues() {
+    const { data, error } = await db.from('venues').select('*').order('id', { ascending: false });
+    if (!error && data) venues = data;
+  }
+
+  async function loadTags() {
+    const { data, error } = await db.from('amenity_tags').select('*').order('name');
+    if (!error && data) amenityTags = data;
+  }
+
+  function renderAll() {
+    renderStats();
+    renderSidebar();
+    if (currentView === 'tags') renderTagsView();
+    else renderVenueList();
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────
+  function renderStats() {
+    const live    = venues.filter(v => v.status === 'live').length;
+    const pending = venues.filter(v => v.status === 'pending').length;
+    const total   = venues.length;
+    document.getElementById('stats').innerHTML = `
+      <span style="padding:4px 10px;border-radius:100px;font-size:12px;font-weight:600;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);">Live ${live}</span>
+      <span style="padding:4px 10px;border-radius:100px;font-size:12px;font-weight:600;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);">Pending ${pending}</span>
+      <span style="padding:4px 10px;border-radius:100px;font-size:12px;font-weight:600;background:var(--surface2);color:var(--text2);border:1px solid var(--border2);">Total ${total}</span>`;
+  }
+
+  // ── Sidebar ───────────────────────────────────────────────────
+  function setFilter(f) {
+    activeFilter = f;
+    currentView = 'venues';
+    renderSidebar();
+    renderVenueList();
+  }
+
+  function renderSidebar() {
+    const counts = {
+      all:      venues.length,
+      pending:  venues.filter(v => v.status === 'pending').length,
+      live:     venues.filter(v => v.status === 'live').length,
+      rejected: venues.filter(v => v.status === 'rejected').length,
+    };
+    ['all', 'pending', 'live', 'rejected'].forEach(f => {
+      const btn = document.getElementById('filter-' + f);
+      const active = currentView === 'venues' && activeFilter === f;
+      btn.className = 'sidebar-btn' + (active ? ' active' : '');
+      btn.textContent = f.charAt(0).toUpperCase() + f.slice(1) + ' (' + counts[f] + ')';
+    });
+    const tagsBtn = document.getElementById('nav-tags');
+    tagsBtn.className = 'sidebar-btn' + (currentView === 'tags' ? ' active' : '');
+  }
+
+  // ── Venue list ────────────────────────────────────────────────
+  function renderVenueList() {
+    const filtered = activeFilter === 'all' ? venues : venues.filter(v => v.status === activeFilter);
+
+    if (filtered.length === 0) {
+      document.getElementById('main-content').innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:240px;gap:12px;color:var(--text3);">
+          <span style="font-size:48px;">🐾</span>
+          <span style="font-size:14px;">No venues here</span>
+        </div>`;
+      return;
+    }
+
+    document.getElementById('main-content').innerHTML = filtered.map(v => {
+      const vTags   = Array.isArray(v.tags) ? v.tags : [];
+      const verified = v.indoor_verified && v.last_verified_date;
+      return `
+        <div onclick="openVenue(${v.id})" class="venue-card"
+          style="background:var(--surface);border-radius:12px;border:1px solid var(--border);margin-bottom:8px;cursor:pointer;overflow:hidden;display:flex;">
+          ${v.cover_photo_url ? `<img src="${h(v.cover_photo_url)}" style="width:72px;height:72px;object-fit:cover;flex-shrink:0;">` : `<div style="width:72px;height:72px;background:var(--surface2);flex-shrink:0;"></div>`}
+          <div style="flex:1;min-width:0;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
+                <span style="font-weight:600;font-size:14px;color:var(--text);">${h(v.name)}</span>
+                ${verified ? '<span style="font-size:11px;font-weight:600;color:var(--green);white-space:nowrap;">Indoor Verified ✓</span>' : ''}
+              </div>
+              <p style="font-size:12px;color:var(--text2);margin-bottom:6px;">${[v.neighbourhood, v.city].filter(Boolean).map(h).join(' · ')}</p>
+              <div style="display:flex;flex-wrap:wrap;gap:5px;">
+                ${pill(SEATING_LABEL[v.seating_type] || v.seating_type)}
+                ${v.pet_menu ? pill('Pet Menu') : ''}
+                ${vTags.slice(0, 2).map(t => pill(h(t))).join('')}
+                ${vTags.length > 2 ? `<span style="font-size:11px;color:var(--text3);padding:2px 6px;">+${vTags.length - 2}</span>` : ''}
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              ${statusBadge(v.status)}
+              <span style="color:var(--text3);font-size:15px;">→</span>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function pill(text) {
+    return `<span style="font-size:11px;color:var(--text2);padding:2px 8px;border-radius:100px;border:1px solid var(--border);background:var(--surface2);">${text}</span>`;
+  }
+
+  function statusBadge(status) {
+    const s = {
+      live:     `background:var(--green-bg);color:var(--green);border-color:var(--green-border)`,
+      pending:  `background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)`,
+      rejected: `background:var(--red-bg);color:var(--red);border-color:var(--red-border)`,
+    }[status] || `background:var(--surface2);color:var(--text2);border-color:var(--border)`;
+    return `<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:100px;border:1px solid;${s}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
+  }
+
+  // ── Edit panel ────────────────────────────────────────────────
+  function openVenue(id) {
+    selectedVenue = venues.find(v => v.id === id);
+    if (!selectedVenue) return;
+    renderEditPanel();
+    document.getElementById('edit-panel').style.transform = 'translateX(0)';
+    document.getElementById('overlay').style.display = 'block';
+  }
+
+  function closePanel() {
+    selectedVenue = null;
+    document.getElementById('edit-panel').style.transform = 'translateX(100%)';
+    document.getElementById('overlay').style.display = 'none';
+  }
+
+  function renderEditPanel() {
+    const v = selectedVenue;
+    const vTags = Array.isArray(v.tags) ? v.tags : [];
+
+    document.getElementById('edit-panel').innerHTML = `
+      <div style="padding:24px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <h2 style="font-weight:700;font-size:18px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:16px;">${h(v.name)}</h2>
+          <button onclick="closePanel()"
+            style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:15px;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"
+            onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">✕</button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:20px;">
+          ${photoSection('Cover Photo', 'cover', v.cover_photo_url)}
+          ${photoSection('Indoor Photo', 'indoor', v.indoor_photo_url)}
+          <div style="border-top:1px solid var(--border);"></div>
+          ${fld('Name',          `<input id="f-name" value="${a(v.name)}" class="input-field">`)}
+          ${fld('Neighbourhood', `<input id="f-neighbourhood" value="${a(v.neighbourhood||'')}" class="input-field">`)}
+          ${fld('City',          `<input id="f-city" value="${a(v.city||'')}" class="input-field">`)}
+          ${fld('Seating type',  `
+            <select id="f-seating" class="input-field">
+              <option value="indoor"  ${v.seating_type==='indoor'  ?'selected':''}>Indoor</option>
+              <option value="outdoor" ${v.seating_type==='outdoor' ?'selected':''}>Outdoor</option>
+              <option value="both"    ${v.seating_type==='both'    ?'selected':''}>Indoor &amp; Outdoor</option>
+            </select>`)}
+          ${fld('Dog sizes', `
+            <select id="f-dog-sizes" class="input-field">
+              <option value="small"  ${v.dog_sizes_allowed==='small'  ?'selected':''}>Small only</option>
+              <option value="medium" ${v.dog_sizes_allowed==='medium' ?'selected':''}>Medium &amp; below</option>
+              <option value="large"  ${v.dog_sizes_allowed==='large'  ?'selected':''}>Large &amp; below</option>
+              <option value="all"    ${v.dog_sizes_allowed==='all'    ?'selected':''}>All sizes</option>
+            </select>`)}
+          ${fld('Status', `
+            <select id="f-status" class="input-field">
+              <option value="pending"  ${v.status==='pending'  ?'selected':''}>Pending</option>
+              <option value="live"     ${v.status==='live'     ?'selected':''}>Live</option>
+              <option value="rejected" ${v.status==='rejected' ?'selected':''}>Rejected</option>
+            </select>`)}
+          ${tog('Indoor verified',  'f-indoor-verified', v.indoor_verified)}
+          ${fld('Last verified date', `<input id="f-last-verified" type="date" value="${a(v.last_verified_date||'')}" class="input-field">`)}
+          ${tog('Pet menu', 'f-pet-menu', v.pet_menu)}
+          ${fld('Google Place ID', `<input id="f-place-id" value="${a(v.google_place_id||'')}" placeholder="ChIJ…" class="input-field">`)}
+
+          <div>
+            <label class="field-label">Amenity Tags</label>
+            <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">
+              ${amenityTags.length === 0
+                ? '<p style="font-size:13px;color:var(--text2);">No tags yet — add some in Manage Tags.</p>'
+                : amenityTags.map(t => `
+                  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                    <input type="checkbox" value="${a(t.name)}" ${vTags.includes(t.name)?'checked':''}
+                      class="tag-cb" style="width:16px;height:16px;accent-color:var(--text);cursor:pointer;">
+                    <span style="font-size:14px;color:var(--text);">${h(t.name)}</span>
+                  </label>`).join('')
+              }
+            </div>
+          </div>
+
+          ${v.notes ? fld('Submission notes', `<p style="font-size:14px;color:var(--text2);font-style:italic;line-height:1.5;">"${h(v.notes)}"</p>`) : ''}
+        </div>
+
+        <div style="margin-top:32px;display:flex;flex-direction:column;gap:10px;">
+          ${v.status === 'pending' ? `
+            <div style="display:flex;gap:8px;">
+              <button onclick="approveVenue()" class="btn-primary" style="flex:1;">Approve &amp; Publish</button>
+              <button onclick="rejectVenue()" class="btn-danger">Reject</button>
+            </div>
+            <button onclick="saveVenue()" class="btn-secondary">Save Changes</button>
+          ` : `
+            <button onclick="saveVenue()" class="btn-primary">Save Changes</button>
+          `}
+        </div>
+        <p id="panel-msg" style="font-size:12px;text-align:center;margin-top:12px;display:none;"></p>
+      </div>`;
+  }
+
+  function photoSection(label, slot, currentUrl) {
+    const inputId   = `photo-input-${slot}`;
+    const previewId = `photo-preview-${slot}`;
+    const progressId = `photo-progress-${slot}`;
+    const msgId     = `photo-msg-${slot}`;
+    return `
+      <div>
+        <label class="field-label">${label}</label>
+        <input type="file" id="${inputId}" accept="image/*" style="display:none;" onchange="handlePhotoSelect('${slot}', this)">
+        ${currentUrl
+          ? `<img id="${previewId}" src="${h(currentUrl)}" style="width:100%;height:130px;object-fit:cover;border-radius:10px;border:1px solid var(--border);display:block;margin-bottom:8px;">`
+          : `<div id="${previewId}" style="display:none;margin-bottom:8px;"><img src="" style="width:100%;height:130px;object-fit:cover;border-radius:10px;border:1px solid var(--border);display:block;" id="${previewId}-img"></div>`
+        }
+        <div class="photo-upload-area" onclick="document.getElementById('${inputId}').click()">
+          ${currentUrl ? '↑ Replace photo' : '+ Upload photo'}
+        </div>
+        <div id="${progressId}" style="display:none;" class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+        <p id="${msgId}" style="font-size:12px;margin-top:6px;display:none;"></p>
+      </div>`;
+  }
+
+  async function handlePhotoSelect(slot, input) {
+    const file = input.files[0];
+    if (!file || !selectedVenue) return;
+    const progressEl = document.getElementById(`photo-progress-${slot}`);
+    const msgEl      = document.getElementById(`photo-msg-${slot}`);
+    const fillEl     = progressEl?.querySelector('.progress-fill');
+    const previewEl  = document.getElementById(`photo-preview-${slot}`);
+    if (progressEl) progressEl.style.display = 'block';
+    if (fillEl) fillEl.style.width = '30%';
+    if (msgEl) msgEl.style.display = 'none';
+    try {
+      const publicUrl = await uploadPhoto(selectedVenue.id, slot, file);
+      if (fillEl) fillEl.style.width = '100%';
+      const field = slot === 'cover' ? 'cover_photo_url' : 'indoor_photo_url';
+      const { error } = await db.from('venues').update({ [field]: publicUrl }).eq('id', selectedVenue.id);
+      if (error) throw error;
+      patchVenue(selectedVenue.id, { [field]: publicUrl });
+      renderVenueList();
+      setTimeout(() => {
+        if (progressEl) progressEl.style.display = 'none';
+        if (previewEl) {
+          const img = previewEl.tagName === 'IMG' ? previewEl : previewEl.querySelector('img');
+          if (img) img.src = publicUrl;
+          previewEl.style.display = 'block';
+        }
+        if (msgEl) { msgEl.style.color = 'var(--green)'; msgEl.textContent = 'Photo saved ✓'; msgEl.style.display = 'block'; setTimeout(() => { if (msgEl) msgEl.style.display = 'none'; }, 3000); }
+      }, 400);
+    } catch (err) {
+      if (progressEl) progressEl.style.display = 'none';
+      if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Upload failed: ' + (err.message || err); msgEl.style.display = 'block'; }
+    }
+    input.value = '';
+  }
+
+  async function uploadPhoto(venueId, slot, file) {
+    const ext  = file.name.split('.').pop() || 'jpg';
+    const path = `${venueId}/${slot}.${ext}`;
+    const { error } = await db.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
+    if (error) throw error;
+    const { data } = db.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  function fld(label, input) {
+    return `<div><label class="field-label">${label}</label>${input}</div>`;
+  }
+
+  function tog(label, id, checked) {
+    return `<div style="display:flex;align-items:center;justify-content:space-between;">
+      <label class="field-label" style="margin:0;">${label}</label>
+      <label class="toggle"><input type="checkbox" id="${id}" ${checked?'checked':''}><span class="toggle-slider"></span></label>
+    </div>`;
+  }
+
+  // ── Venue actions ─────────────────────────────────────────────
+  function getFormData() {
+    return {
+      name:               document.getElementById('f-name').value.trim(),
+      neighbourhood:      document.getElementById('f-neighbourhood').value.trim(),
+      city:               document.getElementById('f-city').value.trim(),
+      seating_type:       document.getElementById('f-seating').value,
+      dog_sizes_allowed:  document.getElementById('f-dog-sizes').value,
+      status:             document.getElementById('f-status').value,
+      indoor_verified:    document.getElementById('f-indoor-verified').checked,
+      last_verified_date: document.getElementById('f-last-verified').value || null,
+      pet_menu:           document.getElementById('f-pet-menu').checked,
+      google_place_id:    document.getElementById('f-place-id').value.trim() || null,
+      tags:               [...document.querySelectorAll('.tag-cb:checked')].map(cb => cb.value),
+    };
+  }
+
+  async function saveVenue() {
+    const updates = getFormData();
+    const { error } = await db.from('venues').update(updates).eq('id', selectedVenue.id);
+    if (error) { panelMsg('Error: ' + error.message, true); return; }
+    patchVenue(selectedVenue.id, updates);
+    renderStats(); renderSidebar(); renderVenueList();
+    panelMsg('Saved ✓');
+  }
+
+  async function approveVenue() {
+    const updates = { ...getFormData(), status: 'live', last_verified_date: today() };
+    const { error } = await db.from('venues').update(updates).eq('id', selectedVenue.id);
+    if (error) { panelMsg('Error: ' + error.message, true); return; }
+    patchVenue(selectedVenue.id, updates);
+    renderStats(); renderSidebar(); renderVenueList();
+    closePanel();
+  }
+
+  async function rejectVenue() {
+    const { error } = await db.from('venues').update({ status: 'rejected' }).eq('id', selectedVenue.id);
+    if (error) { panelMsg('Error: ' + error.message, true); return; }
+    patchVenue(selectedVenue.id, { status: 'rejected' });
+    renderStats(); renderSidebar(); renderVenueList();
+    closePanel();
+  }
+
+  function patchVenue(id, updates) {
+    const idx = venues.findIndex(v => v.id === id);
+    if (idx !== -1) venues[idx] = { ...venues[idx], ...updates };
+    if (selectedVenue?.id === id) Object.assign(selectedVenue, updates);
+  }
+
+  function panelMsg(msg, isError = false) {
+    const el = document.getElementById('panel-msg');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isError ? 'var(--red)' : 'var(--green)';
+    el.style.display = 'block';
+    setTimeout(() => { if (el) el.style.display = 'none'; }, 3000);
+  }
+
+  // ── Tags manager ──────────────────────────────────────────────
+  function showTagsView() {
+    currentView = 'tags';
+    closePanel();
+    renderSidebar();
+    renderTagsView();
+  }
+
+  function renderTagsView() {
+    document.getElementById('main-content').innerHTML = `
+      <div style="max-width:500px;">
+        <div style="margin-bottom:24px;">
+          <h2 style="font-weight:700;font-size:20px;color:var(--text);margin-bottom:4px;">Amenity Tags</h2>
+          <p style="font-size:14px;color:var(--text2);">Create a tag once, then assign it to any venue.</p>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:24px;">
+          <input id="new-tag-input" type="text" placeholder="e.g. Water Bowl Available"
+            class="input-field" style="flex:1;" onkeydown="if(event.key==='Enter') addTag()">
+          <button onclick="addTag()" class="btn-primary" style="width:auto;padding:10px 20px;white-space:nowrap;">Add Tag</button>
+        </div>
+        <div id="tag-list">${renderTagItems()}</div>
+      </div>`;
+  }
+
+  function renderTagItems() {
+    if (amenityTags.length === 0) return '<p style="font-size:14px;color:var(--text2);">No tags yet. Add your first one above.</p>';
+    return amenityTags.map(t => `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:8px;">
+        <span style="font-size:14px;font-weight:500;color:var(--text);">${h(t.name)}</span>
+        <button onclick="deleteTag(${t.id}, '${a(t.name)}')"
+          style="font-size:13px;color:var(--text2);background:none;border:none;cursor:pointer;font-weight:500;padding:4px 8px;border-radius:6px;"
+          onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text2)'">Remove</button>
+      </div>`).join('');
+  }
+
+  async function addTag() {
+    const input = document.getElementById('new-tag-input');
+    const name = input.value.trim();
+    if (!name) return;
+    const btn = input.nextElementSibling;
+    btn.disabled = true; btn.textContent = 'Adding…';
+    const { data, error } = await db.from('amenity_tags').insert({ name }).select().single();
+    btn.disabled = false; btn.textContent = 'Add Tag';
+    if (error) { alert('Error: ' + error.message); return; }
+    amenityTags.push(data);
+    amenityTags.sort((a, b) => a.name.localeCompare(b.name));
+    input.value = '';
+    document.getElementById('tag-list').innerHTML = renderTagItems();
+  }
+
+  async function deleteTag(id, name) {
+    if (!confirm(`Remove "${name}"?`)) return;
+    const { error } = await db.from('amenity_tags').delete().eq('id', id);
+    if (error) { alert('Error: ' + error.message); return; }
+    amenityTags = amenityTags.filter(t => t.id !== id);
+    document.getElementById('tag-list').innerHTML = renderTagItems();
+  }
+
+  // ── CSV Import ────────────────────────────────────────────────
+  function openCsvModal() {
+    csvRows = [];
+    document.getElementById('csv-preview').style.display = 'none';
+    document.getElementById('csv-file-input').value = '';
+    document.getElementById('csv-modal').classList.add('open');
+  }
+
+  function closeCsvModal() {
+    document.getElementById('csv-modal').classList.remove('open');
+  }
+
+  function downloadTemplate() {
+    const header = CSV_COLUMNS.join(',');
+    const example = [
+      'Kopi & Kaya', 'Singapore', 'Tiong Bahru', '1.2840', '103.8320',
+      'indoor', 'false', 'all', 'true', 'pending', 'false', '', '', ''
+    ].join(',');
+    const csv = header + '\n' + example;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'pawmap-venues-template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleCsvFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = parseCSV(e.target.result);
+      if (rows.length === 0) { alert('No rows found in CSV.'); return; }
+      csvRows = rows.map(csvRowToVenue);
+      showCsvPreview();
+    };
+    reader.readAsText(file);
+  }
+
+  function parseCSV(text) {
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) return [];
+    const headers = splitCSVLine(lines[0]);
+    return lines.slice(1).filter(l => l.trim()).map(line => {
+      const vals = splitCSVLine(line);
+      const obj = {};
+      headers.forEach((h, i) => { obj[h.trim()] = (vals[i] ?? '').trim(); });
+      return obj;
+    });
+  }
+
+  function splitCSVLine(line) {
+    const vals = []; let cur = ''; let inQ = false;
+    for (const ch of line) {
+      if (ch === '"') inQ = !inQ;
+      else if (ch === ',' && !inQ) { vals.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    vals.push(cur);
+    return vals;
+  }
+
+  function csvRowToVenue(row) {
+    return {
+      name:               row.name || '',
+      city:               row.city || 'Singapore',
+      neighbourhood:      row.neighbourhood || '',
+      lat:                parseFloat(row.lat) || 0,
+      lng:                parseFloat(row.lng) || 0,
+      seating_type:       ['indoor','outdoor','both'].includes(row.seating_type) ? row.seating_type : 'indoor',
+      pet_menu:           row.pet_menu === 'true' || row.pet_menu === '1',
+      dog_sizes_allowed:  ['small','medium','large','all'].includes(row.dog_sizes_allowed) ? row.dog_sizes_allowed : 'all',
+      is_active:          row.is_active !== 'false',
+      status:             ['live','pending','rejected'].includes(row.status) ? row.status : 'pending',
+      indoor_verified:    row.indoor_verified === 'true' || row.indoor_verified === '1',
+      last_verified_date: row.last_verified_date || null,
+      google_place_id:    row.google_place_id || null,
+      notes:              row.notes || null,
+      tags:               [],
+    };
+  }
+
+  function showCsvPreview() {
+    const preview = document.getElementById('csv-preview');
+    const label   = document.getElementById('csv-preview-label');
+    const table   = document.getElementById('csv-preview-table');
+    const btn     = document.getElementById('csv-import-btn');
+
+    const errors = csvRows.filter(r => !r.name || !r.lat || !r.lng);
+    label.textContent = `${csvRows.length} venue${csvRows.length !== 1 ? 's' : ''} found${errors.length ? ` — ${errors.length} missing required fields` : ''}`;
+    label.style.color = errors.length ? 'var(--orange)' : 'var(--text2)';
+
+    const show = csvRows.slice(0, 5);
+    table.innerHTML = `
+      <thead><tr>
+        <th>Name</th><th>Neighbourhood</th><th>Seating</th><th>Status</th>
+      </tr></thead>
+      <tbody>${show.map(r => `<tr>
+        <td>${h(r.name || '—')}</td>
+        <td>${h(r.neighbourhood || '—')}</td>
+        <td>${h(r.seating_type)}</td>
+        <td>${h(r.status)}</td>
+      </tr>`).join('')}
+      ${csvRows.length > 5 ? `<tr><td colspan="4" style="color:var(--text2);font-style:italic;">…and ${csvRows.length - 5} more</td></tr>` : ''}
+      </tbody>`;
+
+    const valid = csvRows.filter(r => r.name && r.lat && r.lng);
+    btn.textContent = `Import ${valid.length} venue${valid.length !== 1 ? 's' : ''}`;
+    btn.disabled = valid.length === 0;
+    preview.style.display = 'block';
+  }
+
+  async function importCsv() {
+    const valid = csvRows.filter(r => r.name && r.lat && r.lng);
+    const btn = document.getElementById('csv-import-btn');
+    btn.disabled = true; btn.textContent = 'Importing…';
+
+    const { data, error } = await db.from('venues').insert(valid).select();
+    if (error) {
+      btn.disabled = false; btn.textContent = `Import ${valid.length} venues`;
+      alert('Import failed: ' + error.message); return;
+    }
+
+    venues = [...(data || []), ...venues];
+    renderStats(); renderSidebar(); renderVenueList();
+    closeCsvModal();
+    alert(`✓ ${valid.length} venue${valid.length !== 1 ? 's' : ''} imported successfully.`);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function h(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function a(str) {
+    return String(str ?? '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function today() {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  init();
+</script>
+</body>
+</html>

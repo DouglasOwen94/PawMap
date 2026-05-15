@@ -18,4 +18,5 @@ export type Venue = {
   google_place_id: string | null;
   is_active: boolean;
   status: 'live' | 'pending' | 'expired';
+  tags?: string[];
 };
