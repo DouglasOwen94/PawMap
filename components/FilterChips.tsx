@@ -8,18 +8,19 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-export type FilterKey = 'All' | 'Indoor' | 'Outdoor' | 'Open Now' | 'Pet Menu';
+export type FilterKey = 'All' | 'Indoor' | 'Outdoor' | 'Open Now' | 'Pet Menu' | 'Leash-free';
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'All', label: 'All' },
-  { key: 'Indoor', label: 'Indoor ✓' },
-  { key: 'Outdoor', label: 'Outdoor' },
   { key: 'Open Now', label: 'Open Now' },
+  { key: 'Indoor', label: 'Indoor' },
+  { key: 'Outdoor', label: 'Outdoor' },
+  { key: 'Leash-free', label: 'Leash-free' },
   { key: 'Pet Menu', label: 'Pet Menu' },
 ];
 
 type Props = {
-  active: FilterKey;
+  active: FilterKey[];
   onSelect: (key: FilterKey) => void;
 };
 
@@ -45,7 +46,7 @@ export function FilterChips({ active, onSelect }: Props) {
         contentContainerStyle={styles.row}
       >
         {FILTERS.map(({ key, label }) => {
-          const isActive = active === key;
+          const isActive = key === 'All' ? active.length === 0 : active.includes(key);
           return (
             <TouchableOpacity
               key={key}

@@ -33,7 +33,7 @@ A mobile-first map app showing verified pet-friendly cafes and restaurants in Si
 - **Location**: `expo-location` (GPS + permission request) ✅ installed
 - **Device saves (no login)**: AsyncStorage ✅ installed — used in `hooks/useSavedVenues.tsx`
 - **Auth**: Supabase Auth — Google SSO and Apple Sign In only, no email/password — NOT YET BUILT
-- **Email alerts**: Resend (Report a Change notifications to founder) — NOT YET BUILT
+- **SVG icons**: `react-native-svg` ✅ installed — tab bar icons in `components/TabIcons.tsx` (requires dev build rebuild to activate on device)
 - **Build/deploy**: Expo EAS Build (compiles for App Store + Google Play without local tooling)
 
 ---
@@ -67,14 +67,15 @@ Bottom sheet entrance and filter chip position: `translateY` / `bottom`, **350ms
 ## Screens status
 
 - [x] Map screen — live Supabase data, refreshes on tab focus
-- [x] Filter chips (All / Indoor ✓ / Outdoor / Open Now / Pet Menu)
+- [x] Filter chips (All / Open Now / Indoor / Outdoor / Leash-free / Pet Menu) — multi-select, AND logic
 - [x] Venue card bottom sheet
 - [x] Saved screen — pulls from Supabase, filtered by AsyncStorage saved IDs
 - [x] Add a Place screen — submissions go to Supabase as `status: pending`
-- [x] Admin dashboard — PIN-gated tab (PIN in `EXPO_PUBLIC_ADMIN_PIN`), pending + live venue management
-- [ ] Report a Change button (triggers email to founder via Resend)
+- [x] Admin dashboard — web-only (`dashboard/index.html`), removed from app nav bar
+- [x] Report a Change button — saves to Supabase `change_reports` table, visible in dashboard Reports tab
+- [ ] Community photos — users upload photos from the venue card; shown as a scrollable strip below founder photos
 - [ ] Login screen (Google SSO + Apple Sign In)
-- [ ] Google Places API integration (Open Now filter + ratings)
+- [ ] Google Places API integration — Open Now / Closes Soon / Closed tags, Busy / Moderate / Quiet tags, expandable opening hours on venue card
 
 ---
 
@@ -94,12 +95,26 @@ type Venue = {
   indoor_verified: boolean;
   verifier_id: string | null;
   pet_menu: boolean;
+  leash_free: boolean | null;         // null = not set; true = leash-free; false = leash required
   dog_sizes_allowed: "small" | "medium" | "large" | "all";
   hours: Record<string, { open: string; close: string }> | null;  // null until Google Places wired up
   google_place_id: string | null;     // stored but not yet used to call any API
   is_active: boolean;
   status: "live" | "pending" | "rejected" | "expired";
   rating?: number;                    // placeholder — wire up from Google Places later
+};
+```
+
+---
+
+## Community photos data structure (Supabase)
+```typescript
+type CommunityPhoto = {
+  id: number;
+  venue_id: number;
+  photo_url: string;
+  created_at: string;
+  is_visible: boolean;  // founder can hide inappropriate photos from dashboard
 };
 ```
 
@@ -130,18 +145,31 @@ type Venue = {
 - Confirmation toast: "Thanks! We'll verify this in person."
 
 ### Admin dashboard
-- Accessible via the Admin tab in the nav bar
-- PIN-gated: enter `EXPO_PUBLIC_ADMIN_PIN` from `.env` to unlock (persists in AsyncStorage)
-- Lock button at the bottom of the admin list
-- Shows pending + live venues; pending sorted first
-- Tapping a venue opens the review/edit screen:
-  - Pending: shows Approve & publish + Reject buttons
-  - Live: shows Save changes button
+- Web-only: open `dashboard/index.html` directly in Chrome — no server needed
+- Removed from app nav bar (admin.tsx and admin-approve.tsx deleted)
+- Shows all venues (pending / live / rejected) with filter sidebar
+- Tapping a venue opens edit panel: Approve & publish, Reject, or Save changes
 - `last_verified_date` is auto-stamped to today on approve or save
+- Reports tab shows user-submitted change reports; founder marks resolved
+- Manage Tags tab for creating/deleting amenity tags
+- CSV import for bulk venue upload
+
+### Community Photos
+- CTA copy: "Love this place? Share some photos for other pawrents."
+- Entry point: "Add a photo" button on the venue bottom sheet
+- No login required — keep it frictionless
+- Photos upload to Supabase Storage under `community/{venue_id}/` subfolder, saved to `community_photos` table
+- Shown as a horizontally scrollable strip on the venue card, below the founder's cover/indoor photos
+- All photos visible by default (`is_visible: true`); founder can hide individual photos from the dashboard
+- Dashboard: each venue edit panel shows its community photos with a Remove button per photo
+- No caption field — photo only, keeps the UX simple
 
 ### Report a Change
-- Every venue card has a Report a Change button — sends email to founder via Resend
-- NOT YET BUILT — currently shows a placeholder alert
+- Every venue card has a Report a Change button
+- User picks a reason (No longer pet-friendly / Permanently closed / Wrong hours / Wrong location / Other) and optional note
+- Report saved to Supabase `change_reports` table — visible in dashboard under Reports tab
+- Dashboard shows open/resolved status; founder marks resolved manually
+- Automation (n8n/Make/Zapier) can watch the table and send a text to founder
 
 ### User accounts
 - No account needed to browse, report, or submit
@@ -179,6 +207,12 @@ type Venue = {
 - `Admin can read all venues` — SELECT, condition `true` (allows admin to read pending/live)
 - `Public can submit venues` — INSERT
 - `Admin can update venues` — UPDATE, condition `true`
+- `Admin can delete venues` — DELETE, condition `true`
+
+## Supabase RLS policies (community_photos table)
+- `Anyone can read visible community photos` — SELECT, condition: `is_visible = true`
+- `Anyone can submit a community photo` — INSERT
+- `Admin can manage community photos` — UPDATE + DELETE, condition: `true`
 
 ---
 
@@ -187,7 +221,7 @@ type Venue = {
 - **Bottom sheet**: `@gorhom/bottom-sheet` is strongly recommended — handles drag-to-dismiss and snap points far better than custom implementations.
 - **Photo loading**: Add skeleton loaders for cover photos — the minimal aesthetic breaks if images flash in.
 - **Indoor Verified is the core trust signal**: The green dot + badge must be prominent and visually consistent across all surfaces (map sheet, saved list cards).
-- **Filter chip "Indoor ✓"** maps to filter key `"Indoor"` in code.
+- **Filter chips** are multi-select (AND logic). "All" clears all active filters. "Indoor" maps to filter key `"Indoor"` in code.
 - **Non-matching pins** when a filter is active: 25% opacity, non-tappable.
 - **Custom marker Views inside `<Marker>` on Android** need two fixes: `collapsable={false}` on outermost View, and `tracksViewChanges` starts `true` then flips to `false` after first frame via `setTimeout`.
 - **Android map style**: `customMapStyle` only works on Android/Google Maps. iOS Apple Maps ignores it — needs `PROVIDER_GOOGLE` + Google Maps iOS API key for parity.
@@ -210,18 +244,17 @@ Beginner with no prior coding background — first app build. When giving instru
 
 ```
 app/
-  _layout.tsx              # Root Stack — wraps AdminAuthProvider + SavedVenuesProvider
-  admin-approve.tsx        # Venue review/edit screen (pushed from Admin tab)
+  _layout.tsx              # Root Stack — wraps SavedVenuesProvider
   (tabs)/
-    _layout.tsx            # Bottom tab navigator (4 tabs: Map, Saved, Add Place, Admin)
+    _layout.tsx            # Bottom tab navigator (3 tabs: Map, Saved, Add Place)
     index.tsx              # Map screen — live Supabase venues, filters, bottom sheet
     saved.tsx              # Saved screen — Supabase venues filtered by AsyncStorage IDs
     add-place.tsx          # Submission form → Supabase pending queue
-    admin.tsx              # Admin tab — PIN gate + pending/live venue list
 components/
   FilterChips.tsx          # Filter pill row (All / Indoor ✓ / Outdoor / Open Now / Pet Menu)
   MapPin.tsx               # Map marker — white pill with paw icon or rating
-  VenueBottomSheet.tsx     # Venue detail sheet (name, tags, verified badge, save button)
+  VenueBottomSheet.tsx     # Venue detail sheet (name, tags, verified badge, save button, report modal)
+  TabIcons.tsx             # Custom SVG icons for bottom tab bar (Map, Saved, Add Place)
   SavedToast.tsx           # Black pill toast notification (used for save + submission confirm)
   haptic-tab.tsx           # Tab button with iOS haptic feedback
   ui/
@@ -230,11 +263,12 @@ constants/
   fonts.ts                 # Font family name constants (Font.bold, Font.medium, etc.)
 hooks/
   useSavedVenues.tsx       # Context: saved IDs (AsyncStorage) + toast trigger
-  useAdminAuth.tsx         # Context: admin PIN unlock state (AsyncStorage)
 lib/
   supabase.ts              # Supabase client (uses EXPO_PUBLIC_* env vars)
 types/
   venue.ts                 # Venue type definition
 utils/
   venue.ts                 # isExpiredVenue, isIndoorVerified, getPinColor, label helpers
+dashboard/
+  index.html               # Web admin dashboard — open directly in Chrome
 ```

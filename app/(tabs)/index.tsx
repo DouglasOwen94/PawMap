@@ -43,7 +43,14 @@ function venueMatchesFilter(venue: Venue, filter: FilterKey): boolean {
     }
     case 'Pet Menu':
       return venue.pet_menu;
+    case 'Leash-free':
+      return venue.leash_free === true;
   }
+}
+
+function venueMatchesFilters(venue: Venue, filters: FilterKey[]): boolean {
+  if (filters.length === 0) return true;
+  return filters.every(f => venueMatchesFilter(venue, f));
 }
 
 export default function MapScreen() {
@@ -52,7 +59,7 @@ export default function MapScreen() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [showUserLocation, setShowUserLocation] = useState(false);
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<FilterKey>('All');
+  const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [currentRegion, setCurrentRegion] = useState(SINGAPORE_REGION);
 
@@ -76,7 +83,10 @@ export default function MapScreen() {
   );
 
   function handleFilterSelect(filter: FilterKey) {
-    setActiveFilter(filter);
+    setActiveFilters(prev => {
+      if (filter === 'All') return [];
+      return prev.includes(filter) ? prev.filter(f => f !== filter) : [...prev, filter];
+    });
     setTracksViewChanges(true);
     setTimeout(() => setTracksViewChanges(false), 500);
   }
@@ -162,7 +172,7 @@ export default function MapScreen() {
         }}
       >
         {venues
-          .filter(venue => venueMatchesFilter(venue, activeFilter))
+          .filter(venue => venueMatchesFilters(venue, activeFilters))
           .map(venue => (
             <Marker
               key={venue.id}
@@ -182,7 +192,7 @@ export default function MapScreen() {
         }
       </MapView>
 
-      <FilterChips active={activeFilter} onSelect={handleFilterSelect} />
+      <FilterChips active={activeFilters} onSelect={handleFilterSelect} />
 
       <VenueBottomSheet
         venue={selectedVenue}

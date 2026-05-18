@@ -13,6 +13,7 @@ export type Venue = {
   indoor_verified: boolean;
   verifier_id: string | null;
   pet_menu: boolean;
+  leash_free: boolean | null;
   dog_sizes_allowed: 'small' | 'medium' | 'large' | 'all';
   hours: Record<string, { open: string; close: string }> | null;
   google_place_id: string | null;

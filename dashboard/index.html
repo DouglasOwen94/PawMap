@@ -91,6 +91,8 @@
     .progress-fill { height: 100%; background: var(--text); border-radius: 3px; transition: width 0.3s; }
 
     /* Scrollbar */
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
@@ -155,7 +157,8 @@
       <button onclick="setFilter('live')"     id="filter-live"     class="sidebar-btn"></button>
       <button onclick="setFilter('rejected')" id="filter-rejected" class="sidebar-btn"></button>
       <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
-      <button onclick="showTagsView()" id="nav-tags" class="sidebar-btn">🏷️ &nbsp;Manage Tags</button>
+      <button onclick="showTagsView()"    id="nav-tags"     class="sidebar-btn">🏷️ &nbsp;Manage Tags</button>
+      <button onclick="showReportsView()" id="nav-reports"  class="sidebar-btn">🚩 &nbsp;Reports</button>
     </aside>
 
     <!-- Main -->
@@ -234,6 +237,7 @@
   // ── State ─────────────────────────────────────────────────────
   let venues = [];
   let amenityTags = [];
+  let reports = [];
   let activeFilter = 'all';
   let selectedVenue = null;
   let currentView = 'venues';
@@ -244,7 +248,7 @@
   // ── Init ──────────────────────────────────────────────────────
   async function init() {
     showLoading();
-    await Promise.all([loadVenues(), loadTags()]);
+    await Promise.all([loadVenues(), loadTags(), loadReports()]);
     renderAll();
   }
 
@@ -269,10 +273,16 @@
     if (!error && data) amenityTags = data;
   }
 
+  async function loadReports() {
+    const { data, error } = await db.from('change_reports').select('*').order('created_at', { ascending: false });
+    if (!error && data) reports = data;
+  }
+
   function renderAll() {
     renderStats();
     renderSidebar();
     if (currentView === 'tags') renderTagsView();
+    else if (currentView === 'reports') renderReportsView();
     else renderVenueList();
   }
 
@@ -310,6 +320,10 @@
     });
     const tagsBtn = document.getElementById('nav-tags');
     tagsBtn.className = 'sidebar-btn' + (currentView === 'tags' ? ' active' : '');
+    const unresolved = reports.filter(r => !r.resolved).length;
+    const reportsBtn = document.getElementById('nav-reports');
+    reportsBtn.className = 'sidebar-btn' + (currentView === 'reports' ? ' active' : '');
+    reportsBtn.innerHTML = '🚩 &nbsp;Reports' + (unresolved > 0 ? ` <span style="display:inline-block;padding:1px 7px;border-radius:100px;font-size:11px;font-weight:700;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);margin-left:4px;">${unresolved}</span>` : '');
   }
 
   // ── Venue list ────────────────────────────────────────────────
@@ -425,6 +439,7 @@
           ${tog('Indoor verified',  'f-indoor-verified', v.indoor_verified)}
           ${fld('Last verified date', `<input id="f-last-verified" type="date" value="${a(v.last_verified_date||'')}" class="input-field">`)}
           ${tog('Pet menu', 'f-pet-menu', v.pet_menu)}
+          ${tog('Leash-free', 'f-leash-free', v.leash_free)}
           ${fld('Google Place ID', `<input id="f-place-id" value="${a(v.google_place_id||'')}" placeholder="ChIJ…" class="input-field">`)}
 
           <div>
@@ -455,6 +470,9 @@
           ` : `
             <button onclick="saveVenue()" class="btn-primary">Save Changes</button>
           `}
+          <div style="border-top:1px solid var(--border);padding-top:10px;">
+            <button onclick="deleteVenue()" class="btn-danger" style="width:100%;">Delete Venue</button>
+          </div>
         </div>
         <p id="panel-msg" style="font-size:12px;text-align:center;margin-top:12px;display:none;"></p>
       </div>`;
@@ -499,15 +517,10 @@
       if (error) throw error;
       patchVenue(selectedVenue.id, { [field]: publicUrl });
       renderVenueList();
-      setTimeout(() => {
-        if (progressEl) progressEl.style.display = 'none';
-        if (previewEl) {
-          const img = previewEl.tagName === 'IMG' ? previewEl : previewEl.querySelector('img');
-          if (img) img.src = publicUrl;
-          previewEl.style.display = 'block';
-        }
-        if (msgEl) { msgEl.style.color = 'var(--green)'; msgEl.textContent = 'Photo saved ✓'; msgEl.style.display = 'block'; setTimeout(() => { if (msgEl) msgEl.style.display = 'none'; }, 3000); }
-      }, 400);
+      renderEditPanel();
+      if (progressEl) progressEl.style.display = 'none';
+      const newMsgEl = document.getElementById(`photo-msg-${slot}`);
+      if (newMsgEl) { newMsgEl.style.color = 'var(--green)'; newMsgEl.textContent = 'Photo saved ✓'; newMsgEl.style.display = 'block'; setTimeout(() => { if (newMsgEl) newMsgEl.style.display = 'none'; }, 3000); }
     } catch (err) {
       if (progressEl) progressEl.style.display = 'none';
       if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Upload failed: ' + (err.message || err); msgEl.style.display = 'block'; }
@@ -517,8 +530,8 @@
 
   async function uploadPhoto(venueId, slot, file) {
     const ext  = file.name.split('.').pop() || 'jpg';
-    const path = `${venueId}/${slot}.${ext}`;
-    const { error } = await db.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: true });
+    const path = `${venueId}/${slot}_${Date.now()}.${ext}`;
+    const { error } = await db.storage.from(STORAGE_BUCKET).upload(path, file);
     if (error) throw error;
     const { data } = db.storage.from(STORAGE_BUCKET).getPublicUrl(path);
     return data.publicUrl;
@@ -547,6 +560,7 @@
       indoor_verified:    document.getElementById('f-indoor-verified').checked,
       last_verified_date: document.getElementById('f-last-verified').value || null,
       pet_menu:           document.getElementById('f-pet-menu').checked,
+      leash_free:         document.getElementById('f-leash-free').checked,
       google_place_id:    document.getElementById('f-place-id').value.trim() || null,
       tags:               [...document.querySelectorAll('.tag-cb:checked')].map(cb => cb.value),
     };
@@ -554,11 +568,16 @@
 
   async function saveVenue() {
     const updates = getFormData();
+    const btn = document.querySelector('#edit-panel .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     const { error } = await db.from('venues').update(updates).eq('id', selectedVenue.id);
-    if (error) { panelMsg('Error: ' + error.message, true); return; }
+    if (error) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Error — try again'; btn.style.background = 'var(--red)'; setTimeout(() => { btn.textContent = 'Save Changes'; btn.style.background = ''; }, 3000); }
+      return;
+    }
     patchVenue(selectedVenue.id, updates);
     renderStats(); renderSidebar(); renderVenueList();
-    panelMsg('Saved ✓');
+    if (btn) { btn.textContent = 'Saved ✓'; btn.style.background = 'var(--green)'; btn.style.color = '#fff'; setTimeout(() => { btn.textContent = 'Save Changes'; btn.style.background = ''; btn.style.color = ''; btn.disabled = false; }, 2000); }
   }
 
   async function approveVenue() {
@@ -574,6 +593,16 @@
     const { error } = await db.from('venues').update({ status: 'rejected' }).eq('id', selectedVenue.id);
     if (error) { panelMsg('Error: ' + error.message, true); return; }
     patchVenue(selectedVenue.id, { status: 'rejected' });
+    renderStats(); renderSidebar(); renderVenueList();
+    closePanel();
+  }
+
+  async function deleteVenue() {
+    if (!confirm(`Permanently delete "${selectedVenue.name}"? This cannot be undone.`)) return;
+    const { error, count } = await db.from('venues').delete({ count: 'exact' }).eq('id', selectedVenue.id);
+    if (error) { panelMsg('Error: ' + error.message, true); return; }
+    if (count === 0) { panelMsg('Delete blocked — check Supabase RLS policies.', true); return; }
+    venues = venues.filter(v => v.id !== selectedVenue.id);
     renderStats(); renderSidebar(); renderVenueList();
     closePanel();
   }
@@ -603,7 +632,7 @@
 
   function renderTagsView() {
     document.getElementById('main-content').innerHTML = `
-      <div style="max-width:500px;">
+      <div>
         <div style="margin-bottom:24px;">
           <h2 style="font-weight:700;font-size:20px;color:var(--text);margin-bottom:4px;">Amenity Tags</h2>
           <p style="font-size:14px;color:var(--text2);">Create a tag once, then assign it to any venue.</p>
@@ -649,6 +678,71 @@
     if (error) { alert('Error: ' + error.message); return; }
     amenityTags = amenityTags.filter(t => t.id !== id);
     document.getElementById('tag-list').innerHTML = renderTagItems();
+  }
+
+  // ── Reports ───────────────────────────────────────────────────
+  function showReportsView() {
+    currentView = 'reports';
+    closePanel();
+    renderSidebar();
+    renderReportsView();
+  }
+
+  function renderReportsView() {
+    const unresolved = reports.filter(r => !r.resolved);
+    const resolved   = reports.filter(r =>  r.resolved);
+    document.getElementById('main-content').innerHTML = `
+      <div>
+        <div style="margin-bottom:24px;">
+          <h2 style="font-weight:700;font-size:20px;color:var(--text);margin-bottom:4px;">Reported Changes</h2>
+          <p style="font-size:14px;color:var(--text2);">Issues flagged by users from the app.</p>
+        </div>
+        ${reports.length === 0
+          ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:12px;color:var(--text3);">
+               <span style="font-size:40px;">✅</span>
+               <span style="font-size:14px;">No reports yet</span>
+             </div>`
+          : `${unresolved.map(r => reportCard(r)).join('')}
+             ${resolved.length > 0 ? `
+               <p style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 12px;">Resolved</p>
+               ${resolved.map(r => reportCard(r)).join('')}` : ''}`
+        }
+      </div>`;
+  }
+
+  function reportCard(r) {
+    const date = new Date(r.created_at).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:8px;${r.resolved ? 'opacity:0.45;' : ''}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+              <span style="font-size:14px;font-weight:600;color:var(--text);">${h(r.venue_name)}</span>
+              ${r.resolved
+                ? `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);">Resolved</span>`
+                : `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);">Open</span>`}
+            </div>
+            <p style="font-size:14px;color:var(--text);font-weight:500;margin-bottom:${r.note ? '4px' : '0'};">${h(r.reason)}</p>
+            ${r.note ? `<p style="font-size:13px;color:var(--text2);font-style:italic;">"${h(r.note)}"</p>` : ''}
+            <p style="font-size:12px;color:var(--text3);margin-top:6px;">${date}</p>
+          </div>
+          ${!r.resolved ? `
+            <button onclick="resolveReport(${r.id})"
+              style="padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;"
+              onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">
+              Mark Resolved
+            </button>` : ''}
+        </div>
+      </div>`;
+  }
+
+  async function resolveReport(id) {
+    const { error } = await db.from('change_reports').update({ resolved: true }).eq('id', id);
+    if (error) { alert('Error: ' + error.message); return; }
+    const idx = reports.findIndex(r => r.id === id);
+    if (idx !== -1) reports[idx].resolved = true;
+    renderSidebar();
+    renderReportsView();
   }
 
   // ── CSV Import ────────────────────────────────────────────────
