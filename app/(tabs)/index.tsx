@@ -155,18 +155,20 @@ export default function MapScreen() {
   }
 
   async function centreOnUser() {
-    const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
+    const region = (lat: number, lng: number) => ({
+      latitude: lat, longitude: lng, latitudeDelta: 0.04, longitudeDelta: 0.04,
     });
-    mapRef.current?.animateToRegion(
-      {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
-      },
-      800
-    );
+
+    // Use cached position instantly if available
+    const last = await Location.getLastKnownPositionAsync();
+    if (last) {
+      mapRef.current?.animateToRegion(region(last.coords.latitude, last.coords.longitude), 800);
+      return;
+    }
+
+    // No cache — wait for a fresh fix
+    const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    mapRef.current?.animateToRegion(region(fresh.coords.latitude, fresh.coords.longitude), 800);
   }
 
   return (
