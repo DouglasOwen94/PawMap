@@ -73,6 +73,7 @@ Bottom sheet entrance and filter chip position: `translateY` / `bottom`, **350ms
 - [x] Add a Place screen — submissions go to Supabase as `status: pending`
 - [x] Admin dashboard — web-only (`dashboard/index.html`), removed from app nav bar
 - [x] Report a Change button — saves to Supabase `change_reports` table, visible in dashboard Reports tab
+- [x] Address + Directions — address shown on venue card; Google Maps and Waze deep-link buttons (free, no API key needed)
 - [ ] Community photos — users upload photos from the venue card; shown as a scrollable strip below founder photos
 - [ ] Login screen (Google SSO + Apple Sign In)
 - [ ] Google Places API integration — Open Now / Closes Soon / Closed tags, Busy / Moderate / Quiet tags, expandable opening hours on venue card
@@ -98,6 +99,7 @@ type Venue = {
   leash_free: boolean | null;         // null = not set; true = leash-free; false = leash required
   dog_sizes_allowed: "small" | "medium" | "large" | "all";
   hours: Record<string, { open: string; close: string }> | null;  // null until Google Places wired up
+  address: string | null;             // full street address, e.g. "78 Moh Guan Terrace, #01-20" — null until added
   google_place_id: string | null;     // stored but not yet used to call any API
   is_active: boolean;
   status: "live" | "pending" | "rejected" | "expired";
@@ -180,6 +182,15 @@ type CommunityPhoto = {
 ### Geography
 - v1: Singapore only; v2 targets KL and JB
 - `city` field is required on every venue record — never hardcode "Singapore"
+
+### Address & Directions
+- `address` is a nullable text field — fill in per venue from the dashboard; existing venues default to null
+- Address is displayed as a tappable line on the venue card (opens OS default maps app)
+- Two direction buttons on the venue card: **Google Maps** and **Waze** — both use free deep links (no API key, no billing)
+  - Google Maps: `https://www.google.com/maps/dir/?api=1&destination=LAT,LNG`
+  - Waze: `https://waze.com/ul?ll=LAT,LNG&navigate=yes`
+- Buttons always visible (uses lat/lng so they work even if address is null)
+- Address tapping uses: `https://www.google.com/maps/search/?api=1&query=LAT,LNG`
 
 ### Google Place ID
 - Stored in Supabase but not yet connected to any API

@@ -1,11 +1,14 @@
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
+  FlatList,
   Keyboard,
+  Linking,
   StyleSheet,
   Text,
   TextInput,
@@ -19,7 +22,7 @@ import { Font } from '@/constants/fonts';
 import { supabase } from '@/lib/supabase';
 
 import { getDogSizeLabel, getSeatingLabel, getVerificationText, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
-import type { Venue } from '@/types/venue';
+import type { Venue, CommunityPhoto } from '@/types/venue';
 
 type Props = {
   venue: Venue | null;
@@ -27,6 +30,8 @@ type Props = {
   isSaved: boolean;
   onToggleSave: (venue: Venue) => void;
 };
+
+const SCREEN_W = Dimensions.get('window').width;
 
 const REASONS = [
   'No longer pet-friendly',
@@ -38,13 +43,18 @@ const REASONS = [
 
 export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Props) {
   const sheetRef   = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['55%'], []);
+  const snapPoints = useMemo(() => ['65%'], []);
 
   const [reportVisible, setReportVisible]       = useState(false);
   const [selectedReason, setSelectedReason]     = useState<string | null>(null);
   const [reportNote, setReportNote]             = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportSubmitted, setReportSubmitted]   = useState(false);
+
+  const [communityPhotos, setCommunityPhotos] = useState<CommunityPhoto[]>([]);
+  const [uploading, setUploading]             = useState(false);
+  const [previewIndex, setPreviewIndex]       = useState<number | null>(null);
+  const [uploadError, setUploadError]         = useState<string | null>(null);
 
   // Separate animated values so the overlay fades while the sheet slides
   const overlayOpacity  = useRef(new Animated.Value(0)).current;
@@ -73,15 +83,22 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   useEffect(() => {
     if (venue) {
       sheetRef.current?.snapToIndex(0);
+      supabase
+        .from('community_photos')
+        .select('*')
+        .eq('venue_id', venue.id)
+        .eq('is_visible', true)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => { if (data) setCommunityPhotos(data as CommunityPhoto[]); });
     } else {
       sheetRef.current?.close();
+      setCommunityPhotos([]);
     }
   }, [venue]);
 
   const insets   = useSafeAreaInsets();
   const verified = venue ? isIndoorVerified(venue) : false;
   const expired  = venue ? isExpiredVenue(venue)    : false;
-  const SCREEN_W = Dimensions.get('window').width;
 
   function openReport() {
     setSelectedReason(null);
@@ -102,6 +119,64 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
       Animated.timing(overlayOpacity,   { toValue: 0, duration: 200, useNativeDriver: true }),
       Animated.timing(sheetTranslateY,  { toValue: 400, duration: 220, useNativeDriver: true }),
     ]).start(() => setReportVisible(false));
+  }
+
+  async function handleAddPhoto() {
+    if (!venue) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+
+    setUploading(true);
+    try {
+      const asset = result.assets[0];
+      const ext = (asset.mimeType?.split('/')[1]) ?? 'jpg';
+      const path = `community/${venue.id}/${Date.now()}.${ext}`;
+
+      const response = await fetch(asset.uri);
+      const arrayBuffer = await response.arrayBuffer();
+
+      const { error: uploadError } = await supabase.storage
+        .from('venue-photos')
+        .upload(path, arrayBuffer, { contentType: asset.mimeType ?? `image/${ext}` });
+
+      if (uploadError) throw new Error(`Storage: ${uploadError.message}`);
+
+      const { data: urlData } = supabase.storage.from('venue-photos').getPublicUrl(path);
+      const { data: newPhoto, error: dbError } = await supabase
+        .from('community_photos')
+        .insert({ venue_id: venue.id, photo_url: urlData.publicUrl })
+        .select()
+        .single();
+
+      if (dbError) throw new Error(`DB: ${dbError.message}`);
+      if (newPhoto) setCommunityPhotos(prev => [newPhoto as CommunityPhoto, ...prev]);
+    } catch {
+      setUploadError('Upload failed — please try again.');
+      setTimeout(() => setUploadError(null), 3000);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function openGoogleMaps() {
+    if (!venue) return;
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${venue.lat},${venue.lng}`);
+  }
+
+  function openWaze() {
+    if (!venue) return;
+    Linking.openURL(`https://waze.com/ul?ll=${venue.lat},${venue.lng}&navigate=yes`);
+  }
+
+  function openAddressOnMap() {
+    if (!venue) return;
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${venue.lat},${venue.lng}`);
   }
 
   async function submitReport() {
@@ -184,6 +259,27 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 );
               })()}
 
+              {/* Community photos strip */}
+              <View style={styles.communitySection}>
+                <Text style={styles.communityLabel}>From the community</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
+                  <View style={styles.addPhotoBtnWrapper}>
+                    <TouchableOpacity style={styles.addPhotoBtn} onPress={handleAddPhoto} activeOpacity={0.7} disabled={uploading}>
+                      <Text style={styles.addPhotoBtnText}>{uploading ? '…' : '+'}</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.addPhotoHint}>Love this place?{'\n'}Share a photo.</Text>
+                  </View>
+                  {communityPhotos.map((photo, i) => (
+                    <TouchableOpacity key={photo.id} onPress={() => setPreviewIndex(i)} activeOpacity={0.85}>
+                      <Image source={{ uri: photo.photo_url }} style={styles.communityThumb} contentFit="cover" transition={300} />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                {uploadError && (
+                  <Text style={styles.uploadErrorText}>{uploadError}</Text>
+                )}
+              </View>
+
               <View style={[styles.body, { paddingBottom: insets.bottom + 20 }]}>
                 {verified && (
                   <View style={styles.badgeRow}>
@@ -204,6 +300,13 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 <Text style={styles.meta}>
                   {venue.neighbourhood} · {getSeatingLabel(venue.seating_type)}
                 </Text>
+
+                {venue.address && (
+                  <TouchableOpacity style={styles.addressRow} onPress={openAddressOnMap} activeOpacity={0.7}>
+                    <Ionicons name="location-outline" size={13} color="#6B6B6B" />
+                    <Text style={styles.address}>{venue.address}</Text>
+                  </TouchableOpacity>
+                )}
 
                 <View style={styles.tagsRow}>
                   {venue.pet_menu && (
@@ -235,6 +338,17 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                   {getVerificationText(venue)}
                 </Text>
 
+                <View style={styles.directionsRow}>
+                  <TouchableOpacity style={styles.dirBtn} onPress={openGoogleMaps} activeOpacity={0.75}>
+                    <Ionicons name="navigate-outline" size={14} color="#1A1A1A" />
+                    <Text style={styles.dirBtnText}>Google Maps</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.dirBtn} onPress={openWaze} activeOpacity={0.75}>
+                    <Ionicons name="navigate-outline" size={14} color="#1A1A1A" />
+                    <Text style={styles.dirBtnText}>Waze</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <TouchableOpacity
                   style={styles.reportButton}
                   activeOpacity={0.7}
@@ -247,6 +361,30 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
           )}
         </BottomSheetView>
       </BottomSheet>
+
+      {/* Full-screen community photo preview */}
+      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
+        <View style={styles.previewOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setPreviewIndex(null)} activeOpacity={1} />
+          <FlatList
+            data={communityPhotos}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={previewIndex ?? 0}
+            getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+            keyExtractor={item => String(item.id)}
+            renderItem={({ item }) => (
+              <View style={{ width: SCREEN_W, alignItems: 'center', justifyContent: 'center' }}>
+                <Image source={{ uri: item.photo_url }} style={styles.previewImage} contentFit="cover" />
+              </View>
+            )}
+          />
+          <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewIndex(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       <Modal
         visible={reportVisible}
@@ -401,4 +539,26 @@ const styles = StyleSheet.create({
   successContent: { paddingVertical: 32, alignItems: 'center', gap: 10 },
   successIcon:    { fontSize: 32, color: '#22C55E' },
   successText:    { fontSize: 16, fontFamily: Font.semiBold, color: '#0A0A0A' },
+
+  // Community photos
+  communitySection: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  communityLabel:   { fontSize: 11, fontFamily: Font.semiBold, color: '#ABABAB', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  communityRow:     { gap: 8, paddingBottom: 4 },
+  communityThumb:   { width: 80, height: 80, borderRadius: 8 },
+  addPhotoBtn:      { width: 80, height: 80, borderRadius: 8, borderWidth: 1.5, borderColor: '#E8E8E4', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F7F5' },
+  addPhotoBtnText:  { fontSize: 24, color: '#ABABAB', lineHeight: 28 },
+  addPhotoBtnWrapper: { alignItems: 'center', gap: 6, width: 80 },
+  addPhotoHint:       { fontSize: 11, fontFamily: Font.regular, color: '#ABABAB', textAlign: 'center', lineHeight: 15 },
+  uploadErrorText:  { fontSize: 12, fontFamily: Font.medium, color: '#EF4444', marginTop: 4 },
+
+  addressRow:     { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  address:        { fontSize: 13, fontFamily: Font.regular, color: '#6B6B6B', flexShrink: 1 },
+  directionsRow:  { flexDirection: 'row', gap: 8, marginTop: 4 },
+  dirBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E8E8E4' },
+  dirBtnText:     { fontSize: 13, fontFamily: Font.medium, color: '#1A1A1A' },
+
+  // Photo preview modal
+  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center' },
+  previewImage:   { width: SCREEN_W * 0.92, aspectRatio: 3 / 4, borderRadius: 12 },
+  previewClose:   { position: 'absolute', top: 56, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
 });

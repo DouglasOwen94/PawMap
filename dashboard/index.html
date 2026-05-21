@@ -238,10 +238,12 @@
   let venues = [];
   let amenityTags = [];
   let reports = [];
+  let communityPhotos = [];
   let activeFilter = 'all';
   let selectedVenue = null;
   let currentView = 'venues';
   let csvRows = [];
+  let selectedIds = new Set();
 
   const SEATING_LABEL = { indoor: 'Indoor', outdoor: 'Outdoor', both: 'Indoor & Outdoor' };
 
@@ -301,6 +303,7 @@
   function setFilter(f) {
     activeFilter = f;
     currentView = 'venues';
+    selectedIds.clear();
     renderSidebar();
     renderVenueList();
   }
@@ -329,6 +332,16 @@
   // ── Venue list ────────────────────────────────────────────────
   function renderVenueList() {
     const filtered = activeFilter === 'all' ? venues : venues.filter(v => v.status === activeFilter);
+    const isPendingView = activeFilter === 'pending';
+
+    // Build name → [venue list] map across ALL venues to detect duplicates
+    const nameMap = {};
+    venues.forEach(v => {
+      const key = v.name.trim().toLowerCase();
+      if (!nameMap[key]) nameMap[key] = [];
+      nameMap[key].push(v);
+    });
+    const getDupeOthers = v => nameMap[v.name.trim().toLowerCase()].filter(x => x.id !== v.id);
 
     if (filtered.length === 0) {
       document.getElementById('main-content').innerHTML = `
@@ -339,20 +352,61 @@
       return;
     }
 
-    document.getElementById('main-content').innerHTML = filtered.map(v => {
-      const vTags   = Array.isArray(v.tags) ? v.tags : [];
-      const verified = v.indoor_verified && v.last_verified_date;
-      return `
+    let html = '';
+
+    // Bulk action bar — only on Pending view
+    if (isPendingView) {
+      html += `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;gap:12px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text2);user-select:none;">
+            <input type="checkbox" id="select-all-cb" style="width:16px;height:16px;accent-color:var(--text);cursor:pointer;" onchange="toggleSelectAll(this.checked)">
+            Select all
+          </label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="selected-count" style="font-size:13px;color:var(--text2);">0 selected</span>
+            <button id="bulk-approve-btn" onclick="bulkApproveSelected()"
+              style="padding:8px 16px;border-radius:8px;background:var(--green);color:#fff;font-size:13px;font-weight:600;border:none;cursor:not-allowed;opacity:0.4;transition:opacity 0.15s;">
+              Publish Selected
+            </button>
+          </div>
+        </div>`;
+
+      // Duplicate warning banner
+      const dupeVenues = filtered.filter(v => getDupeOthers(v).length > 0);
+      if (dupeVenues.length > 0) {
+        const dupeNames = [...new Set(dupeVenues.map(v => v.name.trim()))];
+        html += `
+          <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px;">
+            <span style="font-size:16px;flex-shrink:0;line-height:1.4;">⚠️</span>
+            <div>
+              <p style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:3px;">Possible duplicates detected</p>
+              <p style="font-size:12px;color:var(--text2);line-height:1.5;">${dupeNames.map(n => `<strong style="color:var(--text);">${h(n)}</strong>`).join(', ')} appear${dupeNames.length === 1 ? 's' : ''} more than once. Check before publishing.</p>
+            </div>
+          </div>`;
+      }
+    }
+
+    html += filtered.map(v => {
+      const vTags     = Array.isArray(v.tags) ? v.tags : [];
+      const verified  = v.indoor_verified && v.last_verified_date;
+      const dupeOthers = getDupeOthers(v);
+      const hasDupe   = dupeOthers.length > 0;
+      const checked   = selectedIds.has(v.id);
+
+      const borderColor = hasDupe ? 'var(--orange-border)' : 'var(--border)';
+      const cardHtml = `
         <div onclick="openVenue(${v.id})" class="venue-card"
-          style="background:var(--surface);border-radius:12px;border:1px solid var(--border);margin-bottom:8px;cursor:pointer;overflow:hidden;display:flex;">
+          style="flex:1;background:var(--surface);border-radius:12px;border:1px solid ${borderColor};cursor:pointer;overflow:hidden;display:flex;">
           ${v.cover_photo_url ? `<img src="${h(v.cover_photo_url)}" style="width:72px;height:72px;object-fit:cover;flex-shrink:0;">` : `<div style="width:72px;height:72px;background:var(--surface2);flex-shrink:0;"></div>`}
           <div style="flex:1;min-width:0;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
             <div style="flex:1;min-width:0;">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
                 <span style="font-weight:600;font-size:14px;color:var(--text);">${h(v.name)}</span>
                 ${verified ? '<span style="font-size:11px;font-weight:600;color:var(--green);white-space:nowrap;">Indoor Verified ✓</span>' : ''}
+                ${hasDupe ? `<span style="font-size:11px;font-weight:600;color:var(--orange);white-space:nowrap;">⚠ Duplicate</span>` : ''}
               </div>
-              <p style="font-size:12px;color:var(--text2);margin-bottom:6px;">${[v.neighbourhood, v.city].filter(Boolean).map(h).join(' · ')}</p>
+              <p style="font-size:12px;color:var(--text2);margin-bottom:${hasDupe ? '3px' : '6px'};">${[v.neighbourhood, v.city].filter(Boolean).map(h).join(' · ')}</p>
+              ${hasDupe ? `<p style="font-size:11px;color:var(--orange);margin-bottom:6px;">Also exists as: ${dupeOthers.map(x => `<span style="font-weight:600;">${x.status}</span>`).join(', ')}</p>` : ''}
               <div style="display:flex;flex-wrap:wrap;gap:5px;">
                 ${pill(SEATING_LABEL[v.seating_type] || v.seating_type)}
                 ${v.pet_menu ? pill('Pet Menu') : ''}
@@ -366,7 +420,21 @@
             </div>
           </div>
         </div>`;
+
+      if (isPendingView) {
+        return `
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <input type="checkbox" ${checked ? 'checked' : ''}
+              onclick="toggleSelect(${v.id}, this.checked, event)"
+              style="width:18px;height:18px;flex-shrink:0;accent-color:var(--text);cursor:pointer;">
+            ${cardHtml}
+          </div>`;
+      }
+      return `<div style="margin-bottom:8px;">${cardHtml}</div>`;
     }).join('');
+
+    document.getElementById('main-content').innerHTML = html;
+    if (isPendingView) updateBulkBar();
   }
 
   function pill(text) {
@@ -383,12 +451,15 @@
   }
 
   // ── Edit panel ────────────────────────────────────────────────
-  function openVenue(id) {
+  async function openVenue(id) {
     selectedVenue = venues.find(v => v.id === id);
     if (!selectedVenue) return;
+    communityPhotos = [];
     renderEditPanel();
     document.getElementById('edit-panel').style.transform = 'translateX(0)';
     document.getElementById('overlay').style.display = 'block';
+    const { data } = await db.from('community_photos').select('*').eq('venue_id', id).order('created_at', { ascending: false });
+    if (data) { communityPhotos = data; renderCommunityPhotos(); }
   }
 
   function closePanel() {
@@ -417,6 +488,7 @@
           ${fld('Name',          `<input id="f-name" value="${a(v.name)}" class="input-field">`)}
           ${fld('Neighbourhood', `<input id="f-neighbourhood" value="${a(v.neighbourhood||'')}" class="input-field">`)}
           ${fld('City',          `<input id="f-city" value="${a(v.city||'')}" class="input-field">`)}
+          ${fld('Address',       `<input id="f-address" value="${a(v.address||'')}" placeholder="e.g. 78 Moh Guan Terrace, #01-20" class="input-field">`)}
           ${fld('Seating type',  `
             <select id="f-seating" class="input-field">
               <option value="indoor"  ${v.seating_type==='indoor'  ?'selected':''}>Indoor</option>
@@ -458,6 +530,13 @@
           </div>
 
           ${v.notes ? fld('Submission notes', `<p style="font-size:14px;color:var(--text2);font-style:italic;line-height:1.5;">"${h(v.notes)}"</p>`) : ''}
+
+          <div>
+            <label class="field-label">Community Photos</label>
+            <div id="community-photos-grid" style="display:flex;flex-wrap:wrap;gap:8px;min-height:40px;">
+              <span style="font-size:13px;color:var(--text3);">Loading…</span>
+            </div>
+          </div>
         </div>
 
         <div style="margin-top:32px;display:flex;flex-direction:column;gap:10px;">
@@ -554,6 +633,7 @@
       name:               document.getElementById('f-name').value.trim(),
       neighbourhood:      document.getElementById('f-neighbourhood').value.trim(),
       city:               document.getElementById('f-city').value.trim(),
+      address:            document.getElementById('f-address').value.trim() || null,
       seating_type:       document.getElementById('f-seating').value,
       dog_sizes_allowed:  document.getElementById('f-dog-sizes').value,
       status:             document.getElementById('f-status').value,
@@ -597,6 +677,44 @@
     closePanel();
   }
 
+  function renderCommunityPhotos() {
+    const grid = document.getElementById('community-photos-grid');
+    if (!grid) return;
+    if (communityPhotos.length === 0) {
+      grid.innerHTML = '<span style="font-size:13px;color:var(--text3);">No community photos yet.</span>';
+      return;
+    }
+    grid.innerHTML = communityPhotos.map(p => `
+      <div style="position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;flex-shrink:0;">
+        <img src="${h(p.photo_url)}" onclick="openPhotoLightbox('${a(p.photo_url)}')"
+          style="width:100%;height:100%;object-fit:cover;cursor:pointer;">
+        <button onclick="removeCommunityPhoto(${p.id})"
+          style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.6);border:none;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
+      </div>`).join('');
+  }
+
+  function openPhotoLightbox(url) {
+    const existing = document.getElementById('photo-lightbox');
+    if (existing) existing.remove();
+    const box = document.createElement('div');
+    box.id = 'photo-lightbox';
+    box.onclick = () => box.remove();
+    box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+    box.innerHTML = `
+      <img src="${a(url)}" style="max-width:90vw;max-height:90vh;border-radius:12px;object-fit:contain;pointer-events:none;">
+      <button onclick="document.getElementById('photo-lightbox').remove()"
+        style="position:absolute;top:20px;right:20px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>`;
+    document.body.appendChild(box);
+  }
+
+  async function removeCommunityPhoto(id) {
+    if (!confirm('Remove this photo?')) return;
+    const { error } = await db.from('community_photos').delete().eq('id', id);
+    if (error) { alert('Error: ' + error.message); return; }
+    communityPhotos = communityPhotos.filter(p => p.id !== id);
+    renderCommunityPhotos();
+  }
+
   async function deleteVenue() {
     if (!confirm(`Permanently delete "${selectedVenue.name}"? This cannot be undone.`)) return;
     const { error, count } = await db.from('venues').delete({ count: 'exact' }).eq('id', selectedVenue.id);
@@ -620,6 +738,56 @@
     el.style.color = isError ? 'var(--red)' : 'var(--green)';
     el.style.display = 'block';
     setTimeout(() => { if (el) el.style.display = 'none'; }, 3000);
+  }
+
+  // ── Bulk selection ────────────────────────────────────────────
+  function toggleSelect(id, checked, event) {
+    event.stopPropagation();
+    if (checked) selectedIds.add(id);
+    else selectedIds.delete(id);
+    updateBulkBar();
+  }
+
+  function toggleSelectAll(checked) {
+    const pendingVenues = venues.filter(v => v.status === 'pending');
+    if (checked) pendingVenues.forEach(v => selectedIds.add(v.id));
+    else selectedIds.clear();
+    renderVenueList();
+  }
+
+  function updateBulkBar() {
+    const countEl      = document.getElementById('selected-count');
+    const btn          = document.getElementById('bulk-approve-btn');
+    const selectAllCb  = document.getElementById('select-all-cb');
+    const pendingCount = venues.filter(v => v.status === 'pending').length;
+    const n = selectedIds.size;
+    if (countEl) countEl.textContent = n === 0 ? '0 selected' : `${n} selected`;
+    if (btn) {
+      btn.disabled = n === 0;
+      btn.style.opacity  = n > 0 ? '1' : '0.4';
+      btn.style.cursor   = n > 0 ? 'pointer' : 'not-allowed';
+    }
+    if (selectAllCb) {
+      selectAllCb.checked       = n === pendingCount && pendingCount > 0;
+      selectAllCb.indeterminate = n > 0 && n < pendingCount;
+    }
+  }
+
+  async function bulkApproveSelected() {
+    if (selectedIds.size === 0) return;
+    const ids = [...selectedIds];
+    const btn = document.getElementById('bulk-approve-btn');
+    if (btn) { btn.disabled = true; btn.textContent = `Publishing ${ids.length}…`; btn.style.opacity = '0.7'; }
+    const updates = { status: 'live', last_verified_date: today() };
+    const { error } = await db.from('venues').update(updates).in('id', ids);
+    if (error) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Publish Selected'; btn.style.opacity = '1'; btn.style.background = 'var(--red)'; setTimeout(() => { if (btn) { btn.style.background = 'var(--green)'; btn.textContent = 'Publish Selected'; } }, 3000); }
+      alert('Bulk publish failed: ' + error.message);
+      return;
+    }
+    ids.forEach(id => patchVenue(id, updates));
+    selectedIds.clear();
+    renderStats(); renderSidebar(); renderVenueList();
   }
 
   // ── Tags manager ──────────────────────────────────────────────

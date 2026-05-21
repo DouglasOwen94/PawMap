@@ -1,3 +1,11 @@
+export type CommunityPhoto = {
+  id: number;
+  venue_id: number;
+  photo_url: string;
+  created_at: string;
+  is_visible: boolean;
+};
+
 export type Venue = {
   id: number;
   name: string;
@@ -16,6 +24,7 @@ export type Venue = {
   leash_free: boolean | null;
   dog_sizes_allowed: 'small' | 'medium' | 'large' | 'all';
   hours: Record<string, { open: string; close: string }> | null;
+  address: string | null;
   google_place_id: string | null;
   is_active: boolean;
   status: 'live' | 'pending' | 'expired';
