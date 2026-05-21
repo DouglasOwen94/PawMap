@@ -10,10 +10,23 @@
       "Bash(Remove-Item -Path \"c:\\\\Users\\\\Douglas Lee\\\\Documents\\\\PawMap\\\\app\\\\\\(tabs\\)\\\\admin\" -Recurse -Force)",
       "Bash(mkdir -p \"c:\\\\Users\\\\Douglas Lee\\\\Documents\\\\PawMap\\\\dashboard\")",
       "Bash(del \"C:\\\\Users\\\\Douglas Lee\\\\Documents\\\\PawMap\\\\app\\\\\\(tabs\\)\\\\admin.tsx\")",
-      "Bash(del \"C:\\\\Users\\\\Douglas Lee\\\\Documents\\\\PawMap\\\\app\\\\admin-approve.tsx\")"
+      "Bash(del \"C:\\\\Users\\\\Douglas Lee\\\\Documents\\\\PawMap\\\\app\\\\admin-approve.tsx\")",
+      "Bash(gh repo *)",
+      "PowerShell(gh repo view DouglasOwen94/PawMap --json visibility,name 2>&1)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(del hooks\\\\useAdminAuth.tsx)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\Douglas Lee\\\\Documents\\\\PawMap\\\\hooks\\\\useAdminAuth.tsx\")",
+      "WebFetch(domain:cdn.jsdelivr.net)",
+      "WebFetch(domain:data.jsdelivr.com)",
+      "WebFetch(domain:www.srihash.org)",
+      "PowerShell($url = \"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.106.1/dist/umd/supabase.min.js\"; $bytes = \\(Invoke-WebRequest -Uri $url -UseBasicParsing\\).Content; $hash = [System.Security.Cryptography.SHA384]::Create\\(\\).ComputeHash\\($bytes\\); \"sha384-\" + [Convert]::ToBase64String\\($hash\\))",
+      "PowerShell($url = \"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.106.1/dist/umd/supabase.min.js\"; $wc = New-Object System.Net.WebClient; $bytes = $wc.DownloadData\\($url\\); $sha384 = [System.Security.Cryptography.SHA384]::Create\\(\\); $hash = $sha384.ComputeHash\\($bytes\\); \"sha384-\" + [Convert]::ToBase64String\\($hash\\))"
     ],
     "additionalDirectories": [
-      "c:\\Users\\Douglas Lee\\Documents\\PawMap"
+      "c:\\Users\\Douglas Lee\\Documents\\PawMap",
+      "c:\\Users\\Douglas Lee\\Documents\\PawMap\\hooks"
     ]
   }
 }

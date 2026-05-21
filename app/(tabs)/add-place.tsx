@@ -167,6 +167,7 @@ export default function AddPlaceScreen() {
               onChangeText={t => setField('name', t)}
               placeholder="e.g., Common Man Coffee Roasters"
               placeholderTextColor="#ABABAB"
+              maxLength={100}
               style={[styles.input, errors.has('name') && styles.inputError]}
             />
           </View>
@@ -178,6 +179,7 @@ export default function AddPlaceScreen() {
               onChangeText={t => setField('neighbourhood', t)}
               placeholder="e.g., Tiong Bahru"
               placeholderTextColor="#ABABAB"
+              maxLength={60}
               style={[styles.input, errors.has('neighbourhood') && styles.inputError]}
             />
           </View>
@@ -192,6 +194,7 @@ export default function AddPlaceScreen() {
               onChangeText={t => setField('address', t)}
               placeholder="e.g., 78 Moh Guan Terrace, #01-20"
               placeholderTextColor="#ABABAB"
+              maxLength={200}
               style={styles.input}
             />
           </View>
@@ -258,6 +261,7 @@ export default function AddPlaceScreen() {
               placeholder="Anything we should know? (e.g., access from side gate)"
               placeholderTextColor="#ABABAB"
               multiline
+              maxLength={500}
               style={[styles.input, styles.inputMultiline]}
             />
           </View>

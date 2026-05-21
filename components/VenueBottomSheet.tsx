@@ -55,6 +55,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   const [uploading, setUploading]             = useState(false);
   const [previewIndex, setPreviewIndex]       = useState<number | null>(null);
   const [uploadError, setUploadError]         = useState<string | null>(null);
+  const [uploadNotice, setUploadNotice]       = useState<string | null>(null);
 
   const [directionsVisible, setDirectionsVisible] = useState(false);
 
@@ -137,30 +138,53 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
     });
     if (result.canceled) return;
 
+    const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
+    const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+
+    const asset = result.assets[0];
+    const mime = asset.mimeType ?? '';
+
+    if (!ALLOWED_MIME.includes(mime)) {
+      setUploadError('Only JPG, PNG, or WEBP images are allowed.');
+      setTimeout(() => setUploadError(null), 3500);
+      return;
+    }
+    if (asset.fileSize && asset.fileSize > MAX_PHOTO_BYTES) {
+      setUploadError('Photo is too large (max 5 MB).');
+      setTimeout(() => setUploadError(null), 3500);
+      return;
+    }
+
     setUploading(true);
     try {
-      const asset = result.assets[0];
-      const ext = (asset.mimeType?.split('/')[1]) ?? 'jpg';
+      const ext = mime.split('/')[1];
       const path = `community/${venue.id}/${Date.now()}.${ext}`;
 
       const response = await fetch(asset.uri);
       const arrayBuffer = await response.arrayBuffer();
 
+      // Belt-and-braces: if fileSize wasn't reported, check the actual bytes
+      if (arrayBuffer.byteLength > MAX_PHOTO_BYTES) {
+        setUploadError('Photo is too large (max 5 MB).');
+        setTimeout(() => setUploadError(null), 3500);
+        return;
+      }
+
       const { error: uploadError } = await supabase.storage
         .from('venue-photos')
-        .upload(path, arrayBuffer, { contentType: asset.mimeType ?? `image/${ext}` });
+        .upload(path, arrayBuffer, { contentType: mime });
 
       if (uploadError) throw new Error(`Storage: ${uploadError.message}`);
 
       const { data: urlData } = supabase.storage.from('venue-photos').getPublicUrl(path);
-      const { data: newPhoto, error: dbError } = await supabase
+      const { error: dbError } = await supabase
         .from('community_photos')
-        .insert({ venue_id: venue.id, photo_url: urlData.publicUrl })
-        .select()
-        .single();
+        .insert({ venue_id: venue.id, photo_url: urlData.publicUrl, is_visible: false });
 
       if (dbError) throw new Error(`DB: ${dbError.message}`);
-      if (newPhoto) setCommunityPhotos(prev => [newPhoto as CommunityPhoto, ...prev]);
+
+      setUploadNotice('Thanks! Your photo will appear after review.');
+      setTimeout(() => setUploadNotice(null), 4000);
     } catch {
       setUploadError('Upload failed — please try again.');
       setTimeout(() => setUploadError(null), 3000);
@@ -303,6 +327,9 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 </ScrollView>
                 {uploadError && (
                   <Text style={styles.uploadErrorText}>{uploadError}</Text>
+                )}
+                {uploadNotice && (
+                  <Text style={styles.uploadNoticeText}>{uploadNotice}</Text>
                 )}
               </View>
 
@@ -490,6 +517,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                     onChangeText={setReportNote}
                     multiline
                     numberOfLines={2}
+                    maxLength={300}
                   />
 
                   <TouchableOpacity
@@ -598,6 +626,7 @@ const styles = StyleSheet.create({
   addPhotoBtnWrapper: { alignItems: 'center', gap: 6, width: 80 },
   addPhotoHint:       { fontSize: 11, fontFamily: Font.regular, color: '#ABABAB', textAlign: 'center', lineHeight: 15 },
   uploadErrorText:  { fontSize: 12, fontFamily: Font.medium, color: '#EF4444', marginTop: 4 },
+  uploadNoticeText: { fontSize: 12, fontFamily: Font.medium, color: '#22C55E', marginTop: 4 },
 
   locationSection: { gap: 6 },
   addressTextRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },

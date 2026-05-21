@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PawMap Admin</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.106.1/dist/umd/supabase.min.js" integrity="sha384-dzQgxMPp/h+N0t5qDf6Bp516wKZr3pXgGMpA7/ZM6tiWkqYo90N060L03dxnZ8Tf" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -128,7 +128,30 @@
   </style>
 </head>
 <body>
-<div id="app">
+
+<!-- Login overlay -->
+<div id="login-screen" style="display:none;position:fixed;inset:0;background:#080808;z-index:1000;align-items:center;justify-content:center;">
+  <div style="width:100%;max-width:380px;padding:32px;background:var(--surface);border:1px solid var(--border);border-radius:16px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
+      <span style="font-size:24px;">🐾</span>
+      <span style="font-weight:700;font-size:18px;color:var(--text);">PawMap Admin</span>
+    </div>
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;color:var(--text2);margin-bottom:6px;">Email</label>
+        <input id="login-email" type="email" class="input-field" autocomplete="username" required>
+      </div>
+      <div style="margin-bottom:18px;">
+        <label style="display:block;font-size:12px;color:var(--text2);margin-bottom:6px;">Password</label>
+        <input id="login-password" type="password" class="input-field" autocomplete="current-password" required>
+      </div>
+      <div id="login-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px;"></div>
+      <button type="submit" id="login-submit" class="btn-primary">Sign in</button>
+    </form>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
 
   <!-- Header -->
   <header style="border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);">
@@ -142,6 +165,11 @@
         style="padding:7px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s;"
         onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">
         ↑ Import CSV
+      </button>
+      <button onclick="handleLogout()"
+        style="padding:7px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s;"
+        onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">
+        Sign out
       </button>
     </div>
   </header>
@@ -159,6 +187,7 @@
       <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
       <button onclick="showTagsView()"    id="nav-tags"     class="sidebar-btn">🏷️ &nbsp;Manage Tags</button>
       <button onclick="showReportsView()" id="nav-reports"  class="sidebar-btn">🚩 &nbsp;Reports</button>
+      <button onclick="showPendingPhotosView()" id="nav-photos" class="sidebar-btn" style="display:none;">📸 &nbsp;Photos <span id="pending-photos-badge" style="margin-left:4px;padding:1px 7px;border-radius:100px;background:var(--orange);color:#fff;font-size:11px;font-weight:700;"></span></button>
     </aside>
 
     <!-- Main -->
@@ -166,7 +195,7 @@
 
     <!-- Edit panel -->
     <div id="edit-panel" class="edit-panel"
-      style="position:absolute;top:0;right:0;height:100%;width:420px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 32px rgba(0,0,0,0.4);overflow-y:auto;transform:translateX(100%);z-index:50;">
+      style="position:absolute;top:0;right:0;height:100%;width:560px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 32px rgba(0,0,0,0.4);overflow-y:auto;transform:translateX(100%);z-index:50;">
     </div>
 
     <!-- Overlay -->
@@ -239,6 +268,7 @@
   let amenityTags = [];
   let reports = [];
   let communityPhotos = [];
+  let pendingPhotos = [];   // all community_photos where is_visible = false
   let activeFilter = 'all';
   let selectedVenue = null;
   let currentView = 'venues';
@@ -250,8 +280,13 @@
   // ── Init ──────────────────────────────────────────────────────
   async function init() {
     showLoading();
-    await Promise.all([loadVenues(), loadTags(), loadReports()]);
+    await Promise.all([loadVenues(), loadTags(), loadReports(), loadPendingPhotos()]);
     renderAll();
+  }
+
+  async function loadPendingPhotos() {
+    const { data } = await db.from('community_photos').select('id, venue_id, photo_url').eq('is_visible', false);
+    if (data) pendingPhotos = data;
   }
 
   function showLoading() {
@@ -283,9 +318,146 @@
   function renderAll() {
     renderStats();
     renderSidebar();
+    renderPendingPhotosBadge();
     if (currentView === 'tags') renderTagsView();
     else if (currentView === 'reports') renderReportsView();
+    else if (currentView === 'pending-photos') showPendingPhotosView();
     else renderVenueList();
+  }
+
+  function renderPendingPhotosBadge() {
+    const btn   = document.getElementById('nav-photos');
+    const badge = document.getElementById('pending-photos-badge');
+    if (!btn || !badge) return;
+    if (pendingPhotos.length > 0) {
+      btn.style.display = 'block';
+      badge.textContent = pendingPhotos.length;
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
+  function showPendingPhotosView() {
+    currentView = 'pending-photos';
+    closePanel();
+    // Group pending photos by venue
+    const byVenue = {};
+    pendingPhotos.forEach(p => {
+      if (!byVenue[p.venue_id]) byVenue[p.venue_id] = [];
+      byVenue[p.venue_id].push(p);
+    });
+    const venueIds = Object.keys(byVenue).map(Number);
+    const venuesWithPending = venues.filter(v => venueIds.includes(v.id));
+
+    if (venuesWithPending.length === 0) {
+      document.getElementById('main-content').innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:240px;color:var(--text2);font-size:14px;">
+          No pending photos — all caught up!
+        </div>`;
+      return;
+    }
+
+    document.getElementById('main-content').innerHTML = `
+      <div style="max-width:700px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <h2 style="font-size:18px;font-weight:700;color:var(--text);">Pending Photos <span style="color:var(--orange);">(${pendingPhotos.length})</span></h2>
+          <div style="display:flex;gap:8px;">
+            <button onclick="approveAllGlobalPhotos()" class="btn-primary" style="width:auto;padding:8px 20px;">✓ Approve all</button>
+            <button onclick="rejectAllGlobalPhotos()" class="btn-danger" style="padding:8px 20px;">✕ Reject all</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          ${venuesWithPending.map(v => `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <div>
+                  <p style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px;">${h(v.name)}</p>
+                  <p style="font-size:12px;color:var(--text2);">${h(v.neighbourhood)} · ${byVenue[v.id].length} pending</p>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button onclick="approveVenuePhotos(${v.id})"
+                    style="padding:6px 14px;border-radius:8px;background:var(--green);border:none;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">
+                    ✓ Approve all
+                  </button>
+                  <button onclick="rejectVenuePhotos(${v.id})"
+                    style="padding:6px 14px;border-radius:8px;background:var(--surface2);border:1px solid var(--red-border);color:var(--red);font-size:13px;font-weight:500;cursor:pointer;">
+                    ✕ Reject all
+                  </button>
+                  <button onclick="openVenue(${v.id})"
+                    style="padding:6px 14px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;">
+                    Edit venue
+                  </button>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                ${byVenue[v.id].map(p => `
+                  <div style="position:relative;width:88px;height:88px;flex-shrink:0;">
+                    <img src="${h(p.photo_url)}" onclick="openPhotoLightbox('${a(p.photo_url)}')"
+                      style="width:100%;height:100%;border-radius:8px;object-fit:cover;cursor:pointer;outline:2px solid var(--orange);outline-offset:-2px;">
+                    <button onclick="rejectSinglePendingPhoto(${p.id})" title="Reject"
+                      style="position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.65);border:1.5px solid rgba(255,255,255,0.5);color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  }
+
+  async function approveVenuePhotos(venueId) {
+    const ids = pendingPhotos.filter(p => p.venue_id === venueId).map(p => p.id);
+    if (!confirm(`Approve ${ids.length} photo(s) for this venue? They will become visible in the app.`)) return;
+    const { error } = await db.from('community_photos').update({ is_visible: true }).in('id', ids);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = pendingPhotos.filter(p => p.venue_id !== venueId);
+    renderPendingPhotosBadge();
+    showPendingPhotosView();
+  }
+
+  async function approveAllGlobalPhotos() {
+    const ids = pendingPhotos.map(p => p.id);
+    if (ids.length === 0) return;
+    if (!confirm(`Approve all ${ids.length} pending photos? They will become visible in the app.`)) return;
+    const { error } = await db.from('community_photos').update({ is_visible: true }).in('id', ids);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = [];
+    renderPendingPhotosBadge();
+    showPendingPhotosView();
+  }
+
+  async function rejectAllGlobalPhotos() {
+    if (!confirm(`Permanently delete all ${pendingPhotos.length} pending photos?`)) return;
+    const ids = pendingPhotos.map(p => p.id);
+    const { error } = await db.from('community_photos').delete().in('id', ids);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = [];
+    renderPendingPhotosBadge();
+    showPendingPhotosView();
+  }
+
+  async function rejectVenuePhotos(venueId) {
+    const ids = pendingPhotos.filter(p => p.venue_id === venueId).map(p => p.id);
+    if (!confirm(`Delete ${ids.length} pending photo(s) for this venue?`)) return;
+    const { error } = await db.from('community_photos').delete().in('id', ids);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = pendingPhotos.filter(p => p.venue_id !== venueId);
+    renderPendingPhotosBadge();
+    showPendingPhotosView();
+  }
+
+  async function rejectSinglePendingPhoto(id) {
+    if (!confirm('Permanently delete this photo?')) return;
+    const { error } = await db.from('community_photos').delete().eq('id', id);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = pendingPhotos.filter(p => p.id !== id);
+    renderPendingPhotosBadge();
+    showPendingPhotosView();
+  }
+
+  function openVenue(id) {
+    const v = venues.find(v => v.id === id);
+    if (v) { selectedVenue = v; currentView = 'venues'; openPanel(id); }
   }
 
   // ── Stats ─────────────────────────────────────────────────────
@@ -482,48 +654,60 @@
         </div>
 
         <div style="display:flex;flex-direction:column;gap:20px;">
-          ${photoSection('Cover Photo', 'cover', v.cover_photo_url)}
-          ${photoSection('Indoor Photo', 'indoor', v.indoor_photo_url)}
+          <!-- Photos row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            ${photoSection('Cover Photo', 'cover', v.cover_photo_url)}
+            ${photoSection('Indoor Photo', 'indoor', v.indoor_photo_url)}
+          </div>
           <div style="border-top:1px solid var(--border);"></div>
-          ${fld('Name',          `<input id="f-name" value="${a(v.name)}" class="input-field">`)}
-          ${fld('Neighbourhood', `<input id="f-neighbourhood" value="${a(v.neighbourhood||'')}" class="input-field">`)}
-          ${fld('City',          `<input id="f-city" value="${a(v.city||'')}" class="input-field">`)}
-          ${fld('Address',       `<input id="f-address" value="${a(v.address||'')}" placeholder="e.g. 78 Moh Guan Terrace, #01-20" class="input-field">`)}
-          ${fld('Seating type',  `
-            <select id="f-seating" class="input-field">
-              <option value="indoor"  ${v.seating_type==='indoor'  ?'selected':''}>Indoor</option>
-              <option value="outdoor" ${v.seating_type==='outdoor' ?'selected':''}>Outdoor</option>
-              <option value="both"    ${v.seating_type==='both'    ?'selected':''}>Indoor &amp; Outdoor</option>
-            </select>`)}
-          ${fld('Dog sizes', `
-            <select id="f-dog-sizes" class="input-field">
-              <option value="small"  ${v.dog_sizes_allowed==='small'  ?'selected':''}>Small only</option>
-              <option value="medium" ${v.dog_sizes_allowed==='medium' ?'selected':''}>Medium &amp; below</option>
-              <option value="large"  ${v.dog_sizes_allowed==='large'  ?'selected':''}>Large &amp; below</option>
-              <option value="all"    ${v.dog_sizes_allowed==='all'    ?'selected':''}>All sizes</option>
-            </select>`)}
-          ${fld('Status', `
-            <select id="f-status" class="input-field">
-              <option value="pending"  ${v.status==='pending'  ?'selected':''}>Pending</option>
-              <option value="live"     ${v.status==='live'     ?'selected':''}>Live</option>
-              <option value="rejected" ${v.status==='rejected' ?'selected':''}>Rejected</option>
-            </select>`)}
-          ${tog('Indoor verified',  'f-indoor-verified', v.indoor_verified)}
-          ${fld('Last verified date', `<input id="f-last-verified" type="date" value="${a(v.last_verified_date||'')}" class="input-field">`)}
-          ${tog('Pet menu', 'f-pet-menu', v.pet_menu)}
-          ${tog('Leash-free', 'f-leash-free', v.leash_free)}
+
+          <!-- 2-col field grid -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            ${fld('Name',          `<input id="f-name" value="${a(v.name)}" class="input-field">`)}
+            ${fld('Neighbourhood', `<input id="f-neighbourhood" value="${a(v.neighbourhood||'')}" class="input-field">`)}
+            ${fld('City',          `<input id="f-city" value="${a(v.city||'')}" class="input-field">`)}
+            ${fld('Address',       `<input id="f-address" value="${a(v.address||'')}" placeholder="e.g. 78 Moh Guan Terrace" class="input-field">`)}
+            ${fld('Seating type',  `
+              <select id="f-seating" class="input-field">
+                <option value="indoor"  ${v.seating_type==='indoor'  ?'selected':''}>Indoor</option>
+                <option value="outdoor" ${v.seating_type==='outdoor' ?'selected':''}>Outdoor</option>
+                <option value="both"    ${v.seating_type==='both'    ?'selected':''}>Indoor &amp; Outdoor</option>
+              </select>`)}
+            ${fld('Dog sizes', `
+              <select id="f-dog-sizes" class="input-field">
+                <option value="small"  ${v.dog_sizes_allowed==='small'  ?'selected':''}>Small only</option>
+                <option value="medium" ${v.dog_sizes_allowed==='medium' ?'selected':''}>Medium &amp; below</option>
+                <option value="large"  ${v.dog_sizes_allowed==='large'  ?'selected':''}>Large &amp; below</option>
+                <option value="all"    ${v.dog_sizes_allowed==='all'    ?'selected':''}>All sizes</option>
+              </select>`)}
+            ${fld('Status', `
+              <select id="f-status" class="input-field">
+                <option value="pending"  ${v.status==='pending'  ?'selected':''}>Pending</option>
+                <option value="live"     ${v.status==='live'     ?'selected':''}>Live</option>
+                <option value="rejected" ${v.status==='rejected' ?'selected':''}>Rejected</option>
+              </select>`)}
+            ${fld('Last verified date', `<input id="f-last-verified" type="date" value="${a(v.last_verified_date||'')}" class="input-field">`)}
+          </div>
+
+          <!-- Toggles row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+            ${tog('Indoor verified', 'f-indoor-verified', v.indoor_verified)}
+            ${tog('Pet menu',        'f-pet-menu',        v.pet_menu)}
+            ${tog('Leash-free',      'f-leash-free',      v.leash_free)}
+          </div>
+
           ${fld('Google Place ID', `<input id="f-place-id" value="${a(v.google_place_id||'')}" placeholder="ChIJ…" class="input-field">`)}
 
           <div>
             <label class="field-label">Amenity Tags</label>
-            <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;flex-wrap:wrap;gap:10px;">
               ${amenityTags.length === 0
                 ? '<p style="font-size:13px;color:var(--text2);">No tags yet — add some in Manage Tags.</p>'
                 : amenityTags.map(t => `
-                  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);">
                     <input type="checkbox" value="${a(t.name)}" ${vTags.includes(t.name)?'checked':''}
-                      class="tag-cb" style="width:16px;height:16px;accent-color:var(--text);cursor:pointer;">
-                    <span style="font-size:14px;color:var(--text);">${h(t.name)}</span>
+                      class="tag-cb" style="width:14px;height:14px;accent-color:var(--text);cursor:pointer;">
+                    <span style="font-size:13px;color:var(--text);">${h(t.name)}</span>
                   </label>`).join('')
               }
             </div>
@@ -532,8 +716,14 @@
           ${v.notes ? fld('Submission notes', `<p style="font-size:14px;color:var(--text2);font-style:italic;line-height:1.5;">"${h(v.notes)}"</p>`) : ''}
 
           <div>
-            <label class="field-label">Community Photos</label>
-            <div id="community-photos-grid" style="display:flex;flex-wrap:wrap;gap:8px;min-height:40px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <label class="field-label" style="margin:0;">Community Photos</label>
+              <button onclick="approveAllCommunityPhotos()" id="approve-all-btn"
+                style="display:none;padding:4px 12px;border-radius:6px;background:var(--green);border:none;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">
+                ✓ Approve all pending
+              </button>
+            </div>
+            <div id="community-photos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,96px);gap:8px;max-height:260px;overflow-y:auto;padding:4px 2px;">
               <span style="font-size:13px;color:var(--text3);">Loading…</span>
             </div>
           </div>
@@ -680,17 +870,55 @@
   function renderCommunityPhotos() {
     const grid = document.getElementById('community-photos-grid');
     if (!grid) return;
+    const approveAllBtn = document.getElementById('approve-all-btn');
+    const pendingCount = communityPhotos.filter(p => !p.is_visible).length;
+    if (approveAllBtn) approveAllBtn.style.display = pendingCount > 1 ? 'block' : 'none';
     if (communityPhotos.length === 0) {
       grid.innerHTML = '<span style="font-size:13px;color:var(--text3);">No community photos yet.</span>';
       return;
     }
-    grid.innerHTML = communityPhotos.map(p => `
-      <div style="position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;flex-shrink:0;">
+    grid.innerHTML = communityPhotos.map(p => {
+      const pending = !p.is_visible;
+      const outline = pending ? 'outline:2.5px solid var(--orange);outline-offset:-2px;' : '';
+      const approveBtn = pending ? `
+        <button onclick="approveCommunityPhoto(${p.id})" title="Approve — make visible in app"
+          style="position:absolute;bottom:5px;right:5px;height:22px;padding:0 8px;border-radius:6px;background:var(--green);border:2px solid rgba(255,255,255,0.85);color:#fff;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">
+          ✓ Approve
+        </button>` : '';
+      const pendingBadge = pending ? `
+        <span style="position:absolute;top:5px;left:5px;padding:2px 7px;border-radius:6px;background:var(--orange);color:#fff;font-size:9px;font-weight:700;letter-spacing:0.04em;">PENDING</span>` : '';
+      return `
+      <div style="position:relative;width:96px;height:96px;border-radius:8px;overflow:hidden;flex-shrink:0;${outline}">
         <img src="${h(p.photo_url)}" onclick="openPhotoLightbox('${a(p.photo_url)}')"
           style="width:100%;height:100%;object-fit:cover;cursor:pointer;">
-        <button onclick="removeCommunityPhoto(${p.id})"
-          style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.6);border:none;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
-      </div>`).join('');
+        ${pendingBadge}
+        <button onclick="removeCommunityPhoto(${p.id})" title="Remove photo"
+          style="position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.65);border:1.5px solid rgba(255,255,255,0.5);color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
+        ${approveBtn}
+      </div>`;
+    }).join('');
+  }
+
+  async function approveCommunityPhoto(id) {
+    const { error } = await db.from('community_photos').update({ is_visible: true }).eq('id', id);
+    if (error) { alert('Error: ' + error.message); return; }
+    const photo = communityPhotos.find(p => p.id === id);
+    if (photo) photo.is_visible = true;
+    pendingPhotos = pendingPhotos.filter(p => p.id !== id);
+    renderPendingPhotosBadge();
+    renderCommunityPhotos();
+  }
+
+  async function approveAllCommunityPhotos() {
+    const pendingIds = communityPhotos.filter(p => !p.is_visible).map(p => p.id);
+    if (pendingIds.length === 0) return;
+    if (!confirm(`Approve ${pendingIds.length} pending photo(s)? They will become visible in the app.`)) return;
+    const { error } = await db.from('community_photos').update({ is_visible: true }).in('id', pendingIds);
+    if (error) { alert('Error: ' + error.message); return; }
+    communityPhotos.forEach(p => { p.is_visible = true; });
+    pendingPhotos = pendingPhotos.filter(p => !pendingIds.includes(p.id));
+    renderPendingPhotosBadge();
+    renderCommunityPhotos();
   }
 
   function openPhotoLightbox(url) {
@@ -1053,7 +1281,48 @@
     return new Date().toISOString().split('T')[0];
   }
 
-  init();
+  // ── Auth ──────────────────────────────────────────────────────
+  async function handleLogin(event) {
+    event.preventDefault();
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const btn = document.getElementById('login-submit');
+    const errBox = document.getElementById('login-error');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    errBox.style.display = 'none';
+    const { error } = await db.auth.signInWithPassword({ email, password });
+    btn.disabled = false; btn.textContent = 'Sign in';
+    if (error) {
+      errBox.textContent = error.message || 'Sign in failed';
+      errBox.style.display = 'block';
+      return;
+    }
+    showApp();
+  }
+
+  async function handleLogout() {
+    await db.auth.signOut();
+    showLogin();
+  }
+
+  function showLogin() {
+    document.getElementById('app').style.display = 'none';
+    const screen = document.getElementById('login-screen');
+    screen.style.display = 'flex';
+    document.getElementById('login-password').value = '';
+  }
+
+  function showApp() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    init();
+  }
+
+  (async () => {
+    const { data: { session } } = await db.auth.getSession();
+    if (session) showApp();
+    else showLogin();
+  })();
 </script>
 </body>
 </html>
