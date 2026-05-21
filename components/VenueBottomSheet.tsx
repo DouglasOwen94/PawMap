@@ -171,12 +171,14 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
 
   function openGoogleMaps() {
     if (!venue) return;
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${venue.lat},${venue.lng}`);
+    const query = encodeURIComponent(`${venue.name}, ${venue.neighbourhood}, Singapore`);
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
   }
 
   function openWaze() {
     if (!venue) return;
-    Linking.openURL(`https://waze.com/ul?ll=${venue.lat},${venue.lng}&navigate=yes`);
+    const query = encodeURIComponent(`${venue.name}, ${venue.neighbourhood}, Singapore`);
+    Linking.openURL(`https://waze.com/ul?q=${query}&navigate=yes`);
   }
 
   function openDirections() {
@@ -184,8 +186,8 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
     dirOverlayOpacity.setValue(0);
     dirTranslateY.setValue(300);
     Animated.parallel([
-      Animated.timing(dirOverlayOpacity, { toValue: 1, duration: 260, useNativeDriver: true }),
-      Animated.spring(dirTranslateY, { toValue: 0, damping: 22, stiffness: 220, useNativeDriver: true }),
+      Animated.timing(dirOverlayOpacity, { toValue: 1, duration: 260, useNativeDriver: false }),
+      Animated.spring(dirTranslateY, { toValue: 0, damping: 22, stiffness: 220, useNativeDriver: false }),
     ]).start();
   }
 
@@ -194,6 +196,13 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
       Animated.timing(dirOverlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
       Animated.timing(dirTranslateY, { toValue: 300, duration: 220, useNativeDriver: true }),
     ]).start(() => setDirectionsVisible(false));
+  }
+
+  function handleNavigate(openFn: () => void) {
+    openFn();
+    dirOverlayOpacity.setValue(0);
+    dirTranslateY.setValue(300);
+    setDirectionsVisible(false);
   }
 
   async function submitReport() {
@@ -393,13 +402,17 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
       </Modal>
 
       {/* Directions action sheet */}
-      <Modal visible={directionsVisible} transparent animationType="none" onRequestClose={closeDirections}>
-        <Animated.View style={[styles.modalOverlay, { opacity: dirOverlayOpacity }]}>
-          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={closeDirections} activeOpacity={1} />
+      <Modal visible={directionsVisible} transparent animationType="none" onRequestClose={() => closeDirections()}>
+        <View style={{ flex: 1 }}>
+          {/* Dim overlay — visual only, never intercepts taps */}
+          <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)', opacity: dirOverlayOpacity }]} pointerEvents="none" />
+          {/* Backdrop tap area — only covers space above the sheet */}
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => closeDirections()} activeOpacity={1} />
+          {/* Sheet */}
           <Animated.View style={[styles.directionsSheet, { paddingBottom: insets.bottom + 16, transform: [{ translateY: dirTranslateY }] }]}>
             <Text style={styles.directionsTitle}>Get directions</Text>
 
-            <TouchableOpacity style={styles.directionsOption} onPress={() => { closeDirections(); setTimeout(openGoogleMaps, 250); }} activeOpacity={0.75}>
+            <TouchableOpacity style={styles.directionsOption} onPress={() => handleNavigate(openGoogleMaps)} activeOpacity={0.75}>
               <View style={[styles.directionsIconBox, { backgroundColor: '#EBF3FF' }]}>
                 <Ionicons name="map" size={20} color="#2563EB" />
               </View>
@@ -407,7 +420,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
               <Ionicons name="chevron-forward" size={16} color="#ABABAB" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.directionsOption} onPress={() => { closeDirections(); setTimeout(openWaze, 250); }} activeOpacity={0.75}>
+            <TouchableOpacity style={styles.directionsOption} onPress={() => handleNavigate(openWaze)} activeOpacity={0.75}>
               <View style={[styles.directionsIconBox, { backgroundColor: '#E0F9FA' }]}>
                 <Ionicons name="navigate" size={20} color="#00B0BF" />
               </View>
@@ -415,11 +428,11 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
               <Ionicons name="chevron-forward" size={16} color="#ABABAB" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.directionsCancel} onPress={closeDirections} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.directionsCancel} onPress={() => closeDirections()} activeOpacity={0.7}>
               <Text style={styles.directionsCancelText}>Cancel</Text>
             </TouchableOpacity>
           </Animated.View>
-        </Animated.View>
+        </View>
       </Modal>
 
       <Modal
@@ -533,7 +546,7 @@ const styles = StyleSheet.create({
   tagsScroll:   { gap: 6, paddingBottom: 2 },
   tag:          { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
   tagText:      { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
-  verifiedDate: { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
+  verifiedDate: { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B', textAlign: 'center' },
   expiredText:  { color: '#F97316' },
   reportLink:   { alignItems: 'center', paddingVertical: 8 },
   reportLinkText: { fontSize: 13, fontFamily: Font.regular, color: '#ABABAB' },
