@@ -3,24 +3,24 @@ import { Image } from 'expo-image';
 import { useCallback, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Font } from '@/constants/fonts';
 import { supabase } from '@/lib/supabase';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
-import { getDogSizeLabel, getSeatingLabel, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
+import { getSeatingLabel, isIndoorVerified } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
 
 type CardProps = {
   venue: Venue;
   onUnsave: (venue: Venue) => void;
+  onPress: (venue: Venue) => void;
 };
 
-function SavedVenueCard({ venue, onUnsave }: CardProps) {
+function SavedVenueCard({ venue, onUnsave, onPress }: CardProps) {
   const verified = isIndoorVerified(venue);
-  const expired  = isExpiredVenue(venue);
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity style={styles.card} onPress={() => onPress(venue)} activeOpacity={0.88}>
       <View style={styles.photoArea}>
         <Image
           source={{ uri: venue.cover_photo_url }}
@@ -45,31 +45,12 @@ function SavedVenueCard({ venue, onUnsave }: CardProps) {
             <Text style={styles.badgeText}>Indoor Verified</Text>
           </View>
         )}
-        {expired && (
-          <View style={styles.badgeRow}>
-            <View style={[styles.verifiedDot, { backgroundColor: '#ABABAB' }]} />
-            <Text style={[styles.badgeText, { color: '#ABABAB' }]}>Verification Expired</Text>
-          </View>
-        )}
-
         <Text style={styles.venueName}>{venue.name}</Text>
-
         <Text style={styles.venueMeta}>
           {venue.neighbourhood} · {getSeatingLabel(venue.seating_type)}
         </Text>
-
-        <View style={styles.tagsRow}>
-          {venue.pet_menu && (
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>Pet menu</Text>
-            </View>
-          )}
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{getDogSizeLabel(venue.dog_sizes_allowed)}</Text>
-          </View>
-        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -103,6 +84,10 @@ export default function SavedScreen() {
 
   const savedVenues = allVenues.filter(v => isSaved(v.id));
 
+  function handleCardPress(venue: Venue) {
+    router.navigate({ pathname: '/(tabs)/', params: { venueId: String(venue.id) } });
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -113,7 +98,11 @@ export default function SavedScreen() {
         data={savedVenues}
         keyExtractor={item => String(item.id)}
         renderItem={({ item }) => (
-          <SavedVenueCard venue={item} onUnsave={toggleSave} />
+          <SavedVenueCard
+            venue={item}
+            onUnsave={toggleSave}
+            onPress={handleCardPress}
+          />
         )}
         ListEmptyComponent={<EmptyState />}
         contentContainerStyle={[
@@ -213,24 +202,6 @@ const styles = StyleSheet.create({
   },
   venueMeta: {
     fontSize: 13,
-    fontFamily: Font.regular,
-    color: '#6B6B6B',
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 2,
-  },
-  tag: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 100,
-    borderWidth: 1,
-    borderColor: '#E8E8E4',
-  },
-  tagText: {
-    fontSize: 12,
     fontFamily: Font.regular,
     color: '#6B6B6B',
   },

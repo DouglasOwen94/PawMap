@@ -2,7 +2,7 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
@@ -63,9 +63,24 @@ export default function MapScreen() {
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [currentRegion, setCurrentRegion] = useState(SINGAPORE_REGION);
 
+  const { venueId } = useLocalSearchParams<{ venueId?: string }>();
+  const handledVenueId = useRef<string | null>(null);
+
   useEffect(() => {
     checkLocationPermission();
   }, []);
+
+  // Open a venue when arriving from the Saved tab
+  useEffect(() => {
+    if (!venueId || venues.length === 0) return;
+    if (handledVenueId.current === venueId) return;
+    const venue = venues.find(v => String(v.id) === venueId);
+    if (venue) {
+      handledVenueId.current = venueId;
+      handleMarkerPress(venue);
+      router.setParams({ venueId: '' });
+    }
+  }, [venueId, venues]);
 
   useFocusEffect(
     useCallback(() => {

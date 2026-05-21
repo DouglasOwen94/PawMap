@@ -1,4 +1,4 @@
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -56,11 +56,16 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   const [previewIndex, setPreviewIndex]       = useState<number | null>(null);
   const [uploadError, setUploadError]         = useState<string | null>(null);
 
-  // Separate animated values so the overlay fades while the sheet slides
+  const [directionsVisible, setDirectionsVisible] = useState(false);
+
+  // Report modal animation
   const overlayOpacity  = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(400)).current;
-  // Tracks keyboard height so the sheet lifts above the keyboard
   const keyboardOffset  = useRef(new Animated.Value(0)).current;
+
+  // Directions modal animation
+  const dirOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const dirTranslateY     = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', (e) => {
@@ -166,7 +171,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
 
   function openGoogleMaps() {
     if (!venue) return;
-    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${venue.lat},${venue.lng}`);
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${venue.lat},${venue.lng}`);
   }
 
   function openWaze() {
@@ -174,9 +179,21 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
     Linking.openURL(`https://waze.com/ul?ll=${venue.lat},${venue.lng}&navigate=yes`);
   }
 
-  function openAddressOnMap() {
-    if (!venue) return;
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${venue.lat},${venue.lng}`);
+  function openDirections() {
+    setDirectionsVisible(true);
+    dirOverlayOpacity.setValue(0);
+    dirTranslateY.setValue(300);
+    Animated.parallel([
+      Animated.timing(dirOverlayOpacity, { toValue: 1, duration: 260, useNativeDriver: true }),
+      Animated.spring(dirTranslateY, { toValue: 0, damping: 22, stiffness: 220, useNativeDriver: true }),
+    ]).start();
+  }
+
+  function closeDirections() {
+    Animated.parallel([
+      Animated.timing(dirOverlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(dirTranslateY, { toValue: 300, duration: 220, useNativeDriver: true }),
+    ]).start(() => setDirectionsVisible(false));
   }
 
   async function submitReport() {
@@ -204,7 +221,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
       >
-        <BottomSheetView style={styles.content}>
+        <BottomSheetScrollView contentContainerStyle={styles.scrollContent}>
           {venue && (
             <>
               {(() => {
@@ -280,86 +297,75 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 )}
               </View>
 
-              <View style={[styles.body, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={styles.body}>
+                {/* — Header: badge + name + meta — */}
                 {verified && (
                   <View style={styles.badgeRow}>
                     <View style={styles.verifiedDot} />
                     <Text style={styles.badgeText}>Indoor Verified</Text>
                   </View>
                 )}
-
                 {expired && (
                   <View style={styles.badgeRow}>
                     <View style={[styles.verifiedDot, { backgroundColor: '#ABABAB' }]} />
                     <Text style={[styles.badgeText, { color: '#ABABAB' }]}>Verification Expired</Text>
                   </View>
                 )}
-
                 <Text style={styles.name}>{venue.name}</Text>
-
                 <Text style={styles.meta}>
                   {venue.neighbourhood} · {getSeatingLabel(venue.seating_type)}
                 </Text>
 
-                {venue.address && (
-                  <TouchableOpacity style={styles.addressRow} onPress={openAddressOnMap} activeOpacity={0.7}>
-                    <Ionicons name="location-outline" size={13} color="#6B6B6B" />
-                    <Text style={styles.address}>{venue.address}</Text>
-                  </TouchableOpacity>
-                )}
+                <View style={styles.divider} />
 
-                <View style={styles.tagsRow}>
-                  {venue.pet_menu && (
-                    <View style={styles.tag}>
-                      <Text style={styles.tagText}>Pet menu</Text>
+                {/* — Location — */}
+                <View style={styles.locationSection}>
+                  {venue.address && (
+                    <View style={styles.addressTextRow}>
+                      <Ionicons name="location-outline" size={13} color="#6B6B6B" />
+                      <Text style={styles.address}>{venue.address}</Text>
                     </View>
+                  )}
+                  <TouchableOpacity style={styles.goNowBtn} onPress={openDirections} activeOpacity={0.75}>
+                    <Text style={styles.goNowText}>Go now →</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* — Tags — */}
+                <Text style={styles.tagsLabel}>What's here</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
+                  {venue.pet_menu && (
+                    <View style={styles.tag}><Text style={styles.tagText}>Pet menu</Text></View>
                   )}
                   {venue.leash_free === true && (
-                    <View style={styles.tag}>
-                      <Text style={styles.tagText}>Leash-free</Text>
-                    </View>
+                    <View style={styles.tag}><Text style={styles.tagText}>Leash-free</Text></View>
                   )}
                   {venue.leash_free === false && (
-                    <View style={styles.tag}>
-                      <Text style={styles.tagText}>Leash required</Text>
-                    </View>
+                    <View style={styles.tag}><Text style={styles.tagText}>Leash required</Text></View>
                   )}
                   <View style={styles.tag}>
                     <Text style={styles.tagText}>{getDogSizeLabel(venue.dog_sizes_allowed)}</Text>
                   </View>
                   {Array.isArray(venue.tags) && venue.tags.map(tag => (
-                    <View key={tag} style={styles.tag}>
-                      <Text style={styles.tagText}>{tag}</Text>
-                    </View>
+                    <View key={tag} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>
                   ))}
-                </View>
+                </ScrollView>
 
+                <View style={styles.divider} />
+
+                {/* — Footer: verified date + report link — */}
                 <Text style={[styles.verifiedDate, expired && styles.expiredText]}>
                   {getVerificationText(venue)}
                 </Text>
-
-                <View style={styles.directionsRow}>
-                  <TouchableOpacity style={styles.dirBtn} onPress={openGoogleMaps} activeOpacity={0.75}>
-                    <Ionicons name="navigate-outline" size={14} color="#1A1A1A" />
-                    <Text style={styles.dirBtnText}>Google Maps</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.dirBtn} onPress={openWaze} activeOpacity={0.75}>
-                    <Ionicons name="navigate-outline" size={14} color="#1A1A1A" />
-                    <Text style={styles.dirBtnText}>Waze</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.reportButton}
-                  activeOpacity={0.7}
-                  onPress={openReport}
-                >
-                  <Text style={styles.reportButtonText}>Report a Change</Text>
+                <TouchableOpacity style={styles.reportLink} activeOpacity={0.6} onPress={openReport}>
+                  <Text style={styles.reportLinkText}>Report a Change</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
-        </BottomSheetView>
+        </BottomSheetScrollView>
       </BottomSheet>
 
       {/* Full-screen community photo preview */}
@@ -384,6 +390,36 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
             <Ionicons name="close" size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
+      </Modal>
+
+      {/* Directions action sheet */}
+      <Modal visible={directionsVisible} transparent animationType="none" onRequestClose={closeDirections}>
+        <Animated.View style={[styles.modalOverlay, { opacity: dirOverlayOpacity }]}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={closeDirections} activeOpacity={1} />
+          <Animated.View style={[styles.directionsSheet, { paddingBottom: insets.bottom + 16, transform: [{ translateY: dirTranslateY }] }]}>
+            <Text style={styles.directionsTitle}>Get directions</Text>
+
+            <TouchableOpacity style={styles.directionsOption} onPress={() => { closeDirections(); setTimeout(openGoogleMaps, 250); }} activeOpacity={0.75}>
+              <View style={[styles.directionsIconBox, { backgroundColor: '#EBF3FF' }]}>
+                <Ionicons name="map" size={20} color="#2563EB" />
+              </View>
+              <Text style={styles.directionsOptionText}>Google Maps</Text>
+              <Ionicons name="chevron-forward" size={16} color="#ABABAB" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.directionsOption} onPress={() => { closeDirections(); setTimeout(openWaze, 250); }} activeOpacity={0.75}>
+              <View style={[styles.directionsIconBox, { backgroundColor: '#E0F9FA' }]}>
+                <Ionicons name="navigate" size={20} color="#00B0BF" />
+              </View>
+              <Text style={styles.directionsOptionText}>Waze</Text>
+              <Ionicons name="chevron-forward" size={16} color="#ABABAB" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.directionsCancel} onPress={closeDirections} activeOpacity={0.7}>
+              <Text style={styles.directionsCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
       </Modal>
 
       <Modal
@@ -463,9 +499,9 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
 }
 
 const styles = StyleSheet.create({
-  sheetBg:  { backgroundColor: '#FFFFFF', borderRadius: 16 },
-  handle:   { backgroundColor: '#E8E8E4', width: 36 },
-  content:  { flex: 1 },
+  sheetBg:      { backgroundColor: '#FFFFFF', borderRadius: 16 },
+  handle:       { backgroundColor: '#E8E8E4', width: 36 },
+  scrollContent: { paddingBottom: 40 },
 
   photoContainer: { height: 200, backgroundColor: '#F7F7F5', overflow: 'hidden' },
   photoLabel: {
@@ -486,22 +522,21 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  body:         { paddingHorizontal: 20, paddingTop: 16, gap: 8 },
+  body:         { paddingHorizontal: 20, paddingTop: 16, gap: 12 },
+  divider:      { height: StyleSheet.hairlineWidth, backgroundColor: '#E8E8E4', marginVertical: 4 },
   badgeRow:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
   verifiedDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
   badgeText:    { fontSize: 12, fontFamily: Font.semiBold, color: '#22C55E', letterSpacing: 0.3 },
   name:         { fontSize: 20, fontFamily: Font.bold, color: '#0A0A0A' },
   meta:         { fontSize: 14, fontFamily: Font.regular, color: '#6B6B6B' },
-  tagsRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
+  tagsLabel:    { fontSize: 11, fontFamily: Font.semiBold, color: '#ABABAB', textTransform: 'uppercase', letterSpacing: 0.5 },
+  tagsScroll:   { gap: 6, paddingBottom: 2 },
   tag:          { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
   tagText:      { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
-  verifiedDate: { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B', marginTop: 2 },
+  verifiedDate: { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
   expiredText:  { color: '#F97316' },
-  reportButton: {
-    marginTop: 8, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: '#E8E8E4', alignItems: 'center',
-  },
-  reportButtonText: { fontSize: 14, fontFamily: Font.medium, color: '#1A1A1A' },
+  reportLink:   { alignItems: 'center', paddingVertical: 8 },
+  reportLinkText: { fontSize: 13, fontFamily: Font.regular, color: '#ABABAB' },
 
   // Modal
   modalOverlay: {
@@ -551,11 +586,20 @@ const styles = StyleSheet.create({
   addPhotoHint:       { fontSize: 11, fontFamily: Font.regular, color: '#ABABAB', textAlign: 'center', lineHeight: 15 },
   uploadErrorText:  { fontSize: 12, fontFamily: Font.medium, color: '#EF4444', marginTop: 4 },
 
-  addressRow:     { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  address:        { fontSize: 13, fontFamily: Font.regular, color: '#6B6B6B', flexShrink: 1 },
-  directionsRow:  { flexDirection: 'row', gap: 8, marginTop: 4 },
-  dirBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E8E8E4' },
-  dirBtnText:     { fontSize: 13, fontFamily: Font.medium, color: '#1A1A1A' },
+  locationSection: { gap: 6 },
+  addressTextRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  address:         { fontSize: 13, fontFamily: Font.regular, color: '#6B6B6B', flexShrink: 1 },
+  goNowBtn:        { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
+  goNowText:       { fontSize: 13, fontFamily: Font.medium, color: '#1A1A1A' },
+
+  // Directions sheet
+  directionsSheet:      { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 10 },
+  directionsTitle:      { fontSize: 11, fontFamily: Font.semiBold, color: '#ABABAB', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
+  directionsOption:     { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#E8E8E4' },
+  directionsIconBox:    { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  directionsOptionText: { flex: 1, fontSize: 15, fontFamily: Font.medium, color: '#0A0A0A' },
+  directionsCancel:     { alignItems: 'center', paddingVertical: 14, marginTop: 2, borderRadius: 14, borderWidth: 1, borderColor: '#E8E8E4' },
+  directionsCancelText: { fontSize: 15, fontFamily: Font.medium, color: '#6B6B6B' },
 
   // Photo preview modal
   previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center' },

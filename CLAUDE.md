@@ -73,7 +73,7 @@ Bottom sheet entrance and filter chip position: `translateY` / `bottom`, **350ms
 - [x] Add a Place screen — submissions go to Supabase as `status: pending`
 - [x] Admin dashboard — web-only (`dashboard/index.html`), removed from app nav bar
 - [x] Report a Change button — saves to Supabase `change_reports` table, visible in dashboard Reports tab
-- [x] Address + Directions — address shown on venue card; Google Maps and Waze deep-link buttons (free, no API key needed)
+- [x] Address + Map pin — address shown on venue card; tapping opens Google Maps pin (free deep link, no API key needed)
 - [ ] Community photos — users upload photos from the venue card; shown as a scrollable strip below founder photos
 - [ ] Login screen (Google SSO + Apple Sign In)
 - [ ] Google Places API integration — Open Now / Closes Soon / Closed tags, Busy / Moderate / Quiet tags, expandable opening hours on venue card
@@ -185,12 +185,12 @@ type CommunityPhoto = {
 
 ### Address & Directions
 - `address` is a nullable text field — fill in per venue from the dashboard; existing venues default to null
-- Address is displayed as a tappable line on the venue card (opens OS default maps app)
-- Two direction buttons on the venue card: **Google Maps** and **Waze** — both use free deep links (no API key, no billing)
+- Address row on venue card has two elements side by side:
+  - **Left**: tappable underlined address text (if set) — opens Google Maps pin view: `https://www.google.com/maps/search/?api=1&query=LAT,LNG`
+  - **Right**: "Go now" pill button — always visible (uses lat/lng, works even if address is null)
+- Tapping "Go now" shows a native action sheet (iOS) or Alert (Android) with: Google Maps (directions) / Waze (navigation) / Cancel
   - Google Maps: `https://www.google.com/maps/dir/?api=1&destination=LAT,LNG`
   - Waze: `https://waze.com/ul?ll=LAT,LNG&navigate=yes`
-- Buttons always visible (uses lat/lng so they work even if address is null)
-- Address tapping uses: `https://www.google.com/maps/search/?api=1&query=LAT,LNG`
 
 ### Google Place ID
 - Stored in Supabase but not yet connected to any API
