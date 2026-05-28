@@ -129,6 +129,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
 
   async function handleAddPhoto() {
     if (!venue) return;
+    if (communityPhotos.length >= 10) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return;
 
@@ -313,12 +314,14 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
               <View style={styles.communitySection}>
                 <Text style={styles.communityLabel}>From the community</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
-                  <View style={styles.addPhotoBtnWrapper}>
-                    <TouchableOpacity style={styles.addPhotoBtn} onPress={handleAddPhoto} activeOpacity={0.7} disabled={uploading}>
-                      <Text style={styles.addPhotoBtnText}>{uploading ? '…' : '+'}</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.addPhotoHint}>Love this place?{'\n'}Share a photo.</Text>
-                  </View>
+                  {communityPhotos.length < 10 && (
+                    <View style={styles.addPhotoBtnWrapper}>
+                      <TouchableOpacity style={styles.addPhotoBtn} onPress={handleAddPhoto} activeOpacity={0.7} disabled={uploading}>
+                        <Text style={styles.addPhotoBtnText}>{uploading ? '…' : '+'}</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.addPhotoHint}>Love this place?{'\n'}Share a photo.</Text>
+                    </View>
+                  )}
                   {communityPhotos.map((photo, i) => (
                     <TouchableOpacity key={photo.id} onPress={() => setPreviewIndex(i)} activeOpacity={0.85}>
                       <Image source={{ uri: photo.photo_url }} style={styles.communityThumb} contentFit="cover" transition={300} />

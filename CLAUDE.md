@@ -74,7 +74,7 @@ Bottom sheet entrance and filter chip position: `translateY` / `bottom`, **350ms
 - [x] Admin dashboard — web-only (`dashboard/index.html`), removed from app nav bar
 - [x] Report a Change button — saves to Supabase `change_reports` table, visible in dashboard Reports tab
 - [x] Address + Map pin — address shown on venue card; tapping opens Google Maps pin (free deep link, no API key needed)
-- [ ] Community photos — users upload photos from the venue card; shown as a scrollable strip below founder photos
+- [x] Community photos — users upload photos from the venue card; shown as a scrollable strip below founder photos. Photos default to is_visible:false (pending review). Dashboard has a 📸 Photos badge in sidebar showing pending count, with approve/reject per photo, per venue, or bulk. Max 5MB, JPG/PNG/WEBP only.
 - [ ] Login screen (Google SSO + Apple Sign In)
 - [ ] Google Places API integration — Open Now / Closes Soon / Closed tags, Busy / Moderate / Quiet tags, expandable opening hours on venue card
 
@@ -283,3 +283,27 @@ utils/
 dashboard/
   index.html               # Web admin dashboard — open directly in Chrome
 ```
+
+---
+
+## Pre-launch checklist (do before submitting to App Store / Google Play)
+
+These are intentionally skipped during development because they break Expo Go. Do them all together as a final step before the first EAS production build.
+
+### Google Maps API key — add app restrictions
+Currently: Application restrictions = None (fine for dev, unsafe for production)
+
+1. Go to Google Cloud Console → APIs & Services → Credentials → your Maps API key
+2. Under **Application restrictions**, select **Android apps**
+   - Add your Android package name (from `app.json` → `android.package`)
+   - Add your SHA-1 certificate fingerprint (from EAS Build → your keystore)
+3. Also add **iOS apps**
+   - Add your iOS bundle identifier (from `app.json` → `ios.bundleIdentifier`)
+4. API restrictions are already set correctly: Maps SDK for Android, Maps SDK for iOS, Places API
+
+**Why it's skipped during dev**: Adding app restrictions locks the key to your app's bundle ID. Expo Go uses its own bundle ID, so the map breaks in development. Safe to add only once you're doing production EAS builds.
+
+### EAS Build setup
+- Run `eas build:configure` to generate `eas.json`
+- Set `android.package` and `ios.bundleIdentifier` in `app.json` before first build
+- After first Android build, retrieve the SHA-1 fingerprint from EAS and add it to the Google Maps API key restriction above

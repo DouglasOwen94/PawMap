@@ -1204,12 +1204,14 @@
   }
 
   function csvRowToVenue(row) {
+    const lat = parseFloat(row.lat);
+    const lng = parseFloat(row.lng);
     return {
-      name:               row.name || '',
+      name:               (row.name || '').slice(0, 100),
       city:               row.city || 'Singapore',
-      neighbourhood:      row.neighbourhood || '',
-      lat:                parseFloat(row.lat) || 0,
-      lng:                parseFloat(row.lng) || 0,
+      neighbourhood:      (row.neighbourhood || '').slice(0, 60),
+      lat:                (isFinite(lat) && lat >= -90  && lat <= 90)  ? lat : null,
+      lng:                (isFinite(lng) && lng >= -180 && lng <= 180) ? lng : null,
       seating_type:       ['indoor','outdoor','both'].includes(row.seating_type) ? row.seating_type : 'indoor',
       pet_menu:           row.pet_menu === 'true' || row.pet_menu === '1',
       dog_sizes_allowed:  ['small','medium','large','all'].includes(row.dog_sizes_allowed) ? row.dog_sizes_allowed : 'all',
@@ -1218,7 +1220,7 @@
       indoor_verified:    row.indoor_verified === 'true' || row.indoor_verified === '1',
       last_verified_date: row.last_verified_date || null,
       google_place_id:    row.google_place_id || null,
-      notes:              row.notes || null,
+      notes:              row.notes ? row.notes.slice(0, 500) : null,
       tags:               [],
     };
   }
@@ -1229,8 +1231,8 @@
     const table   = document.getElementById('csv-preview-table');
     const btn     = document.getElementById('csv-import-btn');
 
-    const errors = csvRows.filter(r => !r.name || !r.lat || !r.lng);
-    label.textContent = `${csvRows.length} venue${csvRows.length !== 1 ? 's' : ''} found${errors.length ? ` — ${errors.length} missing required fields` : ''}`;
+    const errors = csvRows.filter(r => !r.name || r.lat === null || r.lng === null);
+    label.textContent = `${csvRows.length} venue${csvRows.length !== 1 ? 's' : ''} found${errors.length ? ` — ${errors.length} with missing or invalid fields` : ''}`;
     label.style.color = errors.length ? 'var(--orange)' : 'var(--text2)';
 
     const show = csvRows.slice(0, 5);
