@@ -12,8 +12,8 @@ export type Venue = {
   rating?: number;
   city: string;
   neighbourhood: string;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   seating_type: 'indoor' | 'outdoor' | 'both';
   cover_photo_url: string | null;
   indoor_photo_url: string | null;

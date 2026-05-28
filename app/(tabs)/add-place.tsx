@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
+import * as Location from 'expo-location';
 import { supabase } from '@/lib/supabase';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
 import {
@@ -123,13 +124,27 @@ export default function AddPlaceScreen() {
       Alert.alert('Missing info', 'Please complete the required fields marked in red.');
       return;
     }
+
+    let lat: number | null = null;
+    let lng: number | null = null;
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      }
+    } catch {
+      // GPS unavailable — lat/lng remain null, founder geocodes via dashboard
+    }
+
     const { error } = await supabase.from('venues').insert({
       name:              form.name.trim(),
       city:              'Singapore',
       neighbourhood:     form.neighbourhood.trim(),
       address:           form.address.trim() || null,
-      lat:               1.3521,
-      lng:               103.8198,
+      lat,
+      lng,
       seating_type:      form.seating,
       dog_sizes_allowed: form.dogSize,
       pet_menu:          form.petMenu!,

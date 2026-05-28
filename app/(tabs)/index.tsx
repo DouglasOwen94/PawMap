@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
@@ -9,7 +9,7 @@ import { MapPin } from '@/components/MapPin';
 import { VenueBottomSheet } from '@/components/VenueBottomSheet';
 import { supabase } from '@/lib/supabase';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
-import { isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
+import { buildMarkerPositions, isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
 
 const SINGAPORE_REGION = {
@@ -57,6 +57,7 @@ export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
   const { isSaved, toggleSave } = useSavedVenues();
   const [venues, setVenues] = useState<Venue[]>([]);
+  const markerPositions = useMemo(() => buildMarkerPositions(venues), [venues]);
   const [showUserLocation, setShowUserLocation] = useState(false);
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
@@ -66,8 +67,26 @@ export default function MapScreen() {
   const { venueId } = useLocalSearchParams<{ venueId?: string }>();
   const handledVenueId = useRef<string | null>(null);
 
+  function fetchVenues() {
+    supabase
+      .from('venues')
+      .select('*')
+      .eq('status', 'live')
+      .then(({ data, error }) => {
+        if (!error && data) setVenues(data as Venue[]);
+      });
+  }
+
   useEffect(() => {
     checkLocationPermission();
+  }, []);
+
+  // Re-fetch when app returns to foreground (e.g. after approving in dashboard)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') fetchVenues();
+    });
+    return () => sub.remove();
   }, []);
 
   // Open a venue when arriving from the Saved tab
@@ -86,13 +105,7 @@ export default function MapScreen() {
     useCallback(() => {
       // 3 s gives Android time to load network images before freezing the bitmap
       const timer = setTimeout(() => setTracksViewChanges(false), 3000);
-      supabase
-        .from('venues')
-        .select('*')
-        .eq('status', 'live')
-        .then(({ data, error }) => {
-          if (!error && data) setVenues(data as Venue[]);
-        });
+      fetchVenues();
       return () => clearTimeout(timer);
     }, [])
   );
@@ -110,6 +123,7 @@ export default function MapScreen() {
     setSelectedVenue(venue);
     setTracksViewChanges(true);
     setTimeout(() => setTracksViewChanges(false), 600);
+    if (venue.lat == null || venue.lng == null) return;
     // Centre pin in the visible map area above the 55% bottom sheet
     const offset = currentRegion.latitudeDelta * 0.275;
     mapRef.current?.animateToRegion(
@@ -189,11 +203,11 @@ export default function MapScreen() {
         }}
       >
         {venues
-          .filter(venue => venueMatchesFilters(venue, activeFilters))
+          .filter(venue => venue.lat != null && venue.lng != null && venueMatchesFilters(venue, activeFilters))
           .map(venue => (
             <Marker
               key={venue.id}
-              coordinate={{ latitude: venue.lat, longitude: venue.lng }}
+              coordinate={markerPositions.get(venue.id) ?? { latitude: venue.lat!, longitude: venue.lng! }}
               tracksViewChanges={tracksViewChanges}
               onPress={() => handleMarkerPress(venue)}
               anchor={{ x: 0.5, y: 1 }}

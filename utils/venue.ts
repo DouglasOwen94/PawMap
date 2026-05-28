@@ -50,3 +50,46 @@ export function getPinColor(venue: Venue): string {
   if (isIndoorVerified(venue)) return '#22C55E';
   return '#F97316';
 }
+
+// Spreads markers that share the same building radially so each pin is visible.
+// Venues within THRESHOLD degrees (~30m) are fanned out around their centroid.
+const OVERLAP_THRESHOLD = 0.0003;
+const SPREAD_RADIUS = 0.00022;
+
+export function buildMarkerPositions(
+  venues: Venue[]
+): Map<number, { latitude: number; longitude: number }> {
+  const positions = new Map<number, { latitude: number; longitude: number }>();
+  const used = new Set<number>();
+
+  venues.forEach(v => {
+    if (!v.lat || !v.lng || used.has(v.id)) return;
+    const group: Venue[] = [v];
+    used.add(v.id);
+    venues.forEach(u => {
+      if (used.has(u.id) || !u.lat || !u.lng) return;
+      if (
+        Math.abs(v.lat - u.lat) < OVERLAP_THRESHOLD &&
+        Math.abs(v.lng - u.lng) < OVERLAP_THRESHOLD
+      ) {
+        group.push(u);
+        used.add(u.id);
+      }
+    });
+    if (group.length === 1) {
+      positions.set(v.id, { latitude: v.lat, longitude: v.lng });
+    } else {
+      const clat = group.reduce((s, x) => s + x.lat, 0) / group.length;
+      const clng = group.reduce((s, x) => s + x.lng, 0) / group.length;
+      group.forEach((u, i) => {
+        const angle = (2 * Math.PI * i) / group.length - Math.PI / 2;
+        positions.set(u.id, {
+          latitude:  clat + SPREAD_RADIUS * Math.cos(angle),
+          longitude: clng + SPREAD_RADIUS * Math.sin(angle),
+        });
+      });
+    }
+  });
+
+  return positions;
+}

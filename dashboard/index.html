@@ -5,144 +5,169 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PawMap Admin</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.106.1/dist/umd/supabase.min.js" integrity="sha384-dzQgxMPp/h+N0t5qDf6Bp516wKZr3pXgGMpA7/ZM6tiWkqYo90N060L03dxnZ8Tf" crossorigin="anonymous"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg:           #0D0D0D;
-      --surface:      #1A1A1A;
-      --surface2:     #222222;
-      --surface3:     #2A2A2A;
-      --border:       #2E2E2E;
-      --border2:      #3A3A3A;
-      --text:         #F0F0EE;
-      --text2:        #888888;
-      --text3:        #555555;
+      --bg:           #F7F7F5;
+      --surface:      #FFFFFF;
+      --surface2:     #F0F0EE;
+      --surface3:     #E8E8E4;
+      --border:       #E8E8E4;
+      --border2:      #D0D0CC;
+      --text:         #0A0A0A;
+      --text2:        #6B6B6B;
+      --text3:        #ABABAB;
       --green:        #22C55E;
-      --green-bg:     rgba(34,197,94,0.12);
+      --green-bg:     rgba(34,197,94,0.10);
       --green-border: rgba(34,197,94,0.25);
       --orange:       #F97316;
-      --orange-bg:    rgba(249,115,22,0.12);
+      --orange-bg:    rgba(249,115,22,0.10);
       --orange-border:rgba(249,115,22,0.25);
       --red:          #EF4444;
-      --red-bg:       rgba(239,68,68,0.12);
+      --red-bg:       rgba(239,68,68,0.10);
       --red-border:   rgba(239,68,68,0.25);
     }
 
-    * { font-family: 'Inter', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
-
-    body { background: #080808; min-height: 100vh; display: flex; justify-content: center; }
-
-    #app {
-      width: 100%; max-width: 1080px;
-      height: 100vh;
-      display: flex; flex-direction: column;
-      background: var(--surface);
-      box-shadow: 0 0 0 1px var(--border), 0 8px 40px rgba(0,0,0,0.6);
-      overflow: hidden;
-      position: relative;
+    [data-theme="dark"] {
+      --bg:       #111111;
+      --surface:  #1A1A1A;
+      --surface2: #222222;
+      --surface3: #2A2A2A;
+      --border:   #2E2E2E;
+      --border2:  #3A3A3A;
+      --text:     #F0F0EE;
+      --text2:    #888888;
+      --text3:    #555555;
     }
+    [data-theme="dark"] #stats-card,
+    [data-theme="dark"] #map-legend { background: var(--surface); color: var(--text); }
+    [data-theme="dark"] #stats-card { box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+    [data-theme="dark"] #map-legend { box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+    [data-theme="dark"] #csv-modal-box { box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+    [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+    [data-theme="dark"] select.input-field {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    }
+    [data-theme="dark"] .btn-primary { color: #111111; }
+    [data-theme="dark"] #reset-map-btn { background: var(--surface); border-color: var(--border2); color: var(--text2); }
+
+    * { font-family: 'Urbanist', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #E8E8E4; height: 100vh; overflow: hidden; display: flex; justify-content: center; }
+
+    #app { width: 100%; height: calc(100vh / 1.1); zoom: 1.1; display: flex; flex-direction: column; background: var(--surface); overflow: hidden; position: relative; }
 
     /* Toggle switch */
     .toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
     .toggle input { opacity: 0; width: 0; height: 0; }
     .toggle-slider { position: absolute; inset: 0; background: var(--border2); border-radius: 24px; cursor: pointer; transition: 0.2s; }
-    .toggle-slider:before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: var(--text2); border-radius: 50%; transition: 0.2s; }
-    input:checked + .toggle-slider { background: var(--green); }
+    .toggle-slider:before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: var(--text3); border-radius: 50%; transition: 0.2s; }
+    input:checked + .toggle-slider { background: var(--text); }
     input:checked + .toggle-slider:before { transform: translateX(20px); background: white; }
 
-    /* Edit panel */
     .edit-panel { transition: transform 350ms cubic-bezier(0.32, 0.72, 0, 1); }
 
-    /* Inputs */
     .input-field {
       width: 100%; padding: 10px 12px;
       border: 1px solid var(--border2); border-radius: 10px;
       font-size: 14px; color: var(--text); background: var(--surface2);
-      outline: none; transition: border-color 0.15s;
-      -webkit-appearance: none;
+      outline: none; transition: border-color 0.15s; -webkit-appearance: none;
+      font-family: 'Urbanist', sans-serif;
     }
     .input-field:focus { border-color: var(--text2); }
     .input-field::placeholder { color: var(--text3); }
     select.input-field {
       cursor: pointer;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B6B6B' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
       background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
     }
-    select.input-field option { background: var(--surface2); color: var(--text); }
+    select.input-field option { background: var(--surface); color: var(--text); }
 
-    /* Buttons */
-    .btn-primary { background: var(--text); color: #0A0A0A; font-size: 14px; font-weight: 600; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; transition: opacity 0.15s; border: none; }
-    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary { background: var(--text); color: #FFF; font-size: 14px; font-weight: 600; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; transition: opacity 0.15s; border: none; font-family: 'Urbanist', sans-serif; }
+    .btn-primary:hover { opacity: 0.85; }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-secondary { background: var(--surface2); color: var(--text); font-size: 14px; font-weight: 500; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; transition: background 0.15s; border: 1px solid var(--border2); }
+    .btn-secondary { background: var(--surface2); color: var(--text); font-size: 14px; font-weight: 500; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; transition: background 0.15s; border: 1px solid var(--border2); font-family: 'Urbanist', sans-serif; }
     .btn-secondary:hover { background: var(--surface3); }
-    .btn-danger { background: var(--surface2); color: var(--red); font-size: 14px; font-weight: 500; padding: 12px 16px; border-radius: 12px; cursor: pointer; transition: background 0.15s; border: 1px solid var(--border2); flex-shrink: 0; }
+    .btn-danger { background: var(--surface2); color: var(--red); font-size: 14px; font-weight: 500; padding: 12px 16px; border-radius: 12px; cursor: pointer; transition: background 0.15s; border: 1px solid var(--border2); flex-shrink: 0; font-family: 'Urbanist', sans-serif; }
     .btn-danger:hover { background: var(--red-bg); border-color: var(--red-border); }
 
-    /* Photo upload */
-    .photo-upload-area {
-      border: 1.5px dashed var(--border2); border-radius: 10px;
-      padding: 14px; text-align: center; cursor: pointer;
-      transition: border-color 0.15s, background 0.15s; color: var(--text2); font-size: 13px;
-    }
+    .photo-upload-area { border: 1.5px dashed var(--border2); border-radius: 10px; padding: 14px; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; color: var(--text2); font-size: 13px; }
     .photo-upload-area:hover { border-color: var(--text2); background: var(--surface2); }
 
     .progress-bar { height: 3px; background: var(--border2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
     .progress-fill { height: 100%; background: var(--text); border-radius: 3px; transition: width 0.3s; }
 
-    /* Scrollbar */
-    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
-
-    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
 
     .venue-card { transition: border-color 0.15s, background 0.15s; }
     .venue-card:hover { border-color: var(--border2) !important; background: var(--surface2) !important; }
+    .venue-card.selected { border-color: var(--text) !important; box-shadow: 0 0 0 2px var(--text); }
 
-    /* Label helper */
     .field-label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
 
-    /* Modal */
-    #csv-modal { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+    /* CSV modal */
+    #csv-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; align-items: center; justify-content: center; }
     #csv-modal.open { display: flex; }
-    #csv-modal-box {
-      background: var(--surface); border: 1px solid var(--border2); border-radius: 16px;
-      width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto;
-      padding: 28px; display: flex; flex-direction: column; gap: 20px;
-    }
+    #csv-modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.12); }
 
-    /* CSV preview table */
     .csv-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .csv-table th { text-align: left; padding: 6px 10px; color: var(--text2); font-weight: 600; border-bottom: 1px solid var(--border); }
     .csv-table td { padding: 6px 10px; color: var(--text); border-bottom: 1px solid var(--border); }
     .csv-table tr:last-child td { border-bottom: none; }
 
-    /* Sidebar btn base */
-    .sidebar-btn { text-align: left; padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; width: 100%; transition: background 0.15s; background: none; color: var(--text2); }
-    .sidebar-btn:hover { background: var(--surface2); }
-    .sidebar-btn.active { background: var(--text); color: #0A0A0A; }
-    .sidebar-btn.active:hover { background: var(--text); }
+    /* Sidebar */
+    .sidebar-btn { text-align: left; padding: 7px 10px; border-radius: 7px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; width: 100%; transition: background 0.15s, color 0.15s; background: none; color: rgba(255,255,255,0.45); font-family: 'Urbanist', sans-serif; }
+    .sidebar-btn:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
+    .sidebar-btn.active { background: rgba(255,255,255,0.13); color: #FFF; font-weight: 600; }
+    .sidebar-section-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.28); text-transform: uppercase; letter-spacing: 0.09em; padding: 0 10px; margin: 14px 0 3px; }
+    .sidebar-divider { border-top: 1px solid rgba(255,255,255,0.07); margin: 8px 0; }
+    .sidebar-action-btn { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: none; color: rgba(255,255,255,0.35); transition: background 0.15s, color 0.15s; font-family: 'Urbanist', sans-serif; }
+    .sidebar-action-btn:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.65); }
+
+    /* Search in sidebar */
+    .sidebar-search { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.07); color: #FFF; font-size: 12px; font-family: 'Urbanist', sans-serif; outline: none; transition: border-color 0.15s, background 0.15s; }
+    .sidebar-search::placeholder { color: rgba(255,255,255,0.25); }
+    .sidebar-search:focus { border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.10); }
+
+    /* Map / List view toggle */
+    .view-toggle { display: flex; gap: 3px; background: rgba(255,255,255,0.07); border-radius: 8px; padding: 3px; margin: 6px 0 2px; }
+    .view-toggle-btn { flex: 1; padding: 5px 6px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; font-family: 'Urbanist', sans-serif; background: transparent; color: rgba(255,255,255,0.38); transition: all 0.15s; }
+    .view-toggle-btn.active { background: #FFF; color: #0A0A0A; }
+    .view-toggle-btn:hover:not(.active) { color: rgba(255,255,255,0.65); }
+
+    /* Stats card */
+    #stats-card { position: absolute; top: 20px; right: 20px; background: #FFF; border-radius: 16px; padding: 18px 20px; min-width: 200px; box-shadow: 0 4px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.05); z-index: 10; }
+
+    /* Map legend */
+    #map-legend { position: absolute; bottom: 40px; left: 16px; background: #FFF; border-radius: 12px; padding: 12px 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.09); z-index: 10; }
+
+    /* Toast */
+    .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(16px); background: #0A0A0A; color: #FFF; padding: 10px 22px; border-radius: 100px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity 0.28s, transform 0.28s cubic-bezier(0.32,0.72,0,1); z-index: 500; white-space: nowrap; pointer-events: none; }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
-<!-- Login overlay -->
-<div id="login-screen" style="display:none;position:fixed;inset:0;background:#080808;z-index:1000;align-items:center;justify-content:center;">
-  <div style="width:100%;max-width:380px;padding:32px;background:var(--surface);border:1px solid var(--border);border-radius:16px;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
-      <span style="font-size:24px;">🐾</span>
-      <span style="font-weight:700;font-size:18px;color:var(--text);">PawMap Admin</span>
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<!-- Login -->
+<div id="login-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:1000;align-items:center;justify-content:center;">
+  <div style="width:100%;max-width:380px;padding:32px;background:var(--surface);border:1px solid var(--border);border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,0.07);">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:28px;">
+      <span style="font-size:22px;">🐾</span>
+      <span style="font-weight:800;font-size:19px;color:var(--text);">PawMap Admin</span>
     </div>
     <form id="login-form" onsubmit="handleLogin(event)">
       <div style="margin-bottom:14px;">
-        <label style="display:block;font-size:12px;color:var(--text2);margin-bottom:6px;">Email</label>
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Email</label>
         <input id="login-email" type="email" class="input-field" autocomplete="username" required>
       </div>
-      <div style="margin-bottom:18px;">
-        <label style="display:block;font-size:12px;color:var(--text2);margin-bottom:6px;">Password</label>
+      <div style="margin-bottom:20px;">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Password</label>
         <input id="login-password" type="password" class="input-field" autocomplete="current-password" required>
       </div>
       <div id="login-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px;"></div>
@@ -152,55 +177,106 @@
 </div>
 
 <div id="app" style="display:none;">
+  <div style="display:flex;flex:1;overflow:hidden;position:relative;">
 
-  <!-- Header -->
-  <header style="border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <span style="font-size:20px;">🐾</span>
-      <span style="font-weight:700;font-size:16px;color:var(--text);">PawMap Admin</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div id="stats" style="display:flex;align-items:center;gap:8px;"></div>
-      <button onclick="openCsvModal()"
-        style="padding:7px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s;"
-        onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">
-        ↑ Import CSV
-      </button>
-      <button onclick="handleLogout()"
-        style="padding:7px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s;"
-        onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">
-        Sign out
-      </button>
-    </div>
-  </header>
+    <!-- ── Sidebar ────────────────────────────────────────────── -->
+    <aside style="width:210px;background:#0A0A0A;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;">
 
-  <!-- Body -->
-  <div style="display:flex;flex:1;overflow:hidden;position:relative;background:var(--bg);">
+      <!-- Logo -->
+      <div style="padding:15px 14px 8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:17px;">🐾</span>
+          <span style="font-weight:800;font-size:13px;color:#FFF;letter-spacing:-0.01em;">PawMap Admin</span>
+        </div>
+      </div>
 
-    <!-- Sidebar -->
-    <aside style="width:200px;border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px;gap:3px;flex-shrink:0;background:var(--surface);">
-      <p style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;padding:0 8px;">Venues</p>
-      <button onclick="setFilter('all')"      id="filter-all"      class="sidebar-btn"></button>
-      <button onclick="setFilter('pending')"  id="filter-pending"  class="sidebar-btn"></button>
-      <button onclick="setFilter('live')"     id="filter-live"     class="sidebar-btn"></button>
-      <button onclick="setFilter('rejected')" id="filter-rejected" class="sidebar-btn"></button>
-      <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
-      <button onclick="showTagsView()"    id="nav-tags"     class="sidebar-btn">🏷️ &nbsp;Manage Tags</button>
-      <button onclick="showReportsView()" id="nav-reports"  class="sidebar-btn">🚩 &nbsp;Reports</button>
-      <button onclick="showPendingPhotosView()" id="nav-photos" class="sidebar-btn" style="display:none;">📸 &nbsp;Photos <span id="pending-photos-badge" style="margin-left:4px;padding:1px 7px;border-radius:100px;background:var(--orange);color:#fff;font-size:11px;font-weight:700;"></span></button>
+      <!-- Nav -->
+      <nav style="flex:1;overflow-y:auto;padding:0 6px;">
+
+        <!-- Search -->
+        <div style="padding:6px 4px 4px;">
+          <input id="venue-search" type="text" class="sidebar-search" placeholder="Search venues…" oninput="handleSearch(this.value)" autocomplete="off">
+        </div>
+
+        <!-- Venues section -->
+        <p class="sidebar-section-label">Venues</p>
+        <button onclick="setFilter('all')"      id="filter-all"      class="sidebar-btn"></button>
+        <button onclick="setFilter('pending')"  id="filter-pending"  class="sidebar-btn"></button>
+        <button onclick="setFilter('live')"     id="filter-live"     class="sidebar-btn"></button>
+        <button onclick="setFilter('rejected')" id="filter-rejected" class="sidebar-btn"></button>
+
+        <div class="sidebar-divider"></div>
+
+        <!-- Manage section -->
+        <p class="sidebar-section-label">Manage</p>
+        <button onclick="showReportsView()"       id="nav-reports" class="sidebar-btn">Reports</button>
+        <button onclick="showPendingPhotosView()" id="nav-photos"  class="sidebar-btn">
+          Photos <span id="pending-photos-badge" style="margin-left:3px;padding:1px 6px;border-radius:100px;background:var(--orange);color:#fff;font-size:10px;font-weight:700;display:none;"></span>
+        </button>
+        <button onclick="showTagsView()"          id="nav-tags"    class="sidebar-btn">Tags</button>
+      </nav>
+
+      <!-- Bottom actions -->
+      <div style="padding:10px 6px 14px;border-top:1px solid rgba(255,255,255,0.07);">
+        <button onclick="openCsvModal()" class="sidebar-action-btn">↑ Import CSV</button>
+        <button id="dark-mode-btn" onclick="toggleDarkMode()" class="sidebar-action-btn">☽ Dark Mode</button>
+        <button onclick="handleLogout()" class="sidebar-action-btn">Sign out</button>
+      </div>
     </aside>
 
-    <!-- Main -->
-    <main id="main-content" style="flex:1;overflow-y:auto;padding:24px;"></main>
+    <!-- ── Main area ──────────────────────────────────────────── -->
+    <div id="main-area" style="flex:1;display:flex;overflow:hidden;background:var(--bg);">
 
-    <!-- Edit panel -->
+      <!-- List panel (left side in split mode) -->
+      <div id="list-panel" style="display:none;width:380px;flex-shrink:0;overflow-y:auto;padding:20px;border-right:1px solid var(--border);background:var(--bg);position:relative;z-index:45;"></div>
+
+      <!-- Map wrapper -->
+      <div id="map-wrapper" style="flex:1;position:relative;overflow:hidden;">
+        <div id="map-container" style="width:100%;height:100%;"></div>
+
+        <!-- Reset view button (top-left, shown when zoomed in) -->
+        <button id="reset-map-btn" onclick="resetMapView()" style="display:none;position:absolute;top:16px;left:16px;z-index:10;padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:opacity 0.15s;">⊙ All venues</button>
+
+        <!-- Floating stats card (top-right over map) -->
+        <div id="stats-card" style="display:none;"></div>
+
+        <!-- Map legend (bottom-left over map) -->
+        <div id="map-legend" style="display:none;">
+          <p style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:9px;">Legend</p>
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:10px;height:10px;border-radius:50%;background:#22C55E;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.15);flex-shrink:0;"></span>
+              <span style="font-size:12px;color:var(--text2);">Indoor Verified</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:10px;height:10px;border-radius:50%;background:#F97316;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.15);flex-shrink:0;"></span>
+              <span style="font-size:12px;color:var(--text2);">Outdoor / live</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:10px;height:10px;border-radius:50%;background:#0A0A0A;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.15);flex-shrink:0;"></span>
+              <span style="font-size:12px;color:var(--text2);">Indoor / live</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:10px;height:10px;border-radius:50%;background:#ABABAB;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.15);flex-shrink:0;"></span>
+              <span style="font-size:12px;color:var(--text2);">Pending / other</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content panel (Reports / Photos / Tags) -->
+      <div id="content-container" style="display:none;flex:1;overflow-y:auto;padding:24px;background:var(--bg);"></div>
+
+    </div>
+
+    <!-- Edit panel (420px) -->
     <div id="edit-panel" class="edit-panel"
-      style="position:absolute;top:0;right:0;height:100%;width:560px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 32px rgba(0,0,0,0.4);overflow-y:auto;transform:translateX(100%);z-index:50;">
+      style="position:absolute;top:0;right:0;height:100%;width:420px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 32px rgba(0,0,0,0.07);overflow-y:auto;transform:translateX(100%);z-index:50;">
     </div>
 
     <!-- Overlay -->
     <div id="overlay" onclick="closePanel()"
-      style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.4);z-index:40;">
+      style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.20);z-index:40;">
     </div>
   </div>
 
@@ -213,24 +289,15 @@
           <p style="font-size:13px;color:var(--text2);margin-top:3px;">Add multiple venues at once from a spreadsheet.</p>
         </div>
         <button onclick="closeCsvModal()"
-          style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"
-          onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">✕</button>
+          style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
       </div>
-
-      <!-- Template download -->
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <div>
           <p style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">Need a template?</p>
           <p style="font-size:12px;color:var(--text2);">Download the CSV template with the correct column headers.</p>
         </div>
-        <button onclick="downloadTemplate()"
-          style="padding:8px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface3);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;"
-          onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--surface3)'">
-          ↓ Download
-        </button>
+        <button onclick="downloadTemplate()" style="padding:8px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--surface3);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:'Urbanist',sans-serif;">↓ Download</button>
       </div>
-
-      <!-- File drop -->
       <div>
         <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(this)">
         <div class="photo-upload-area" style="padding:28px;" onclick="document.getElementById('csv-file-input').click()">
@@ -238,8 +305,6 @@
           <p style="font-size:12px;color:var(--text2);">or drag and drop</p>
         </div>
       </div>
-
-      <!-- Preview -->
       <div id="csv-preview" style="display:none;">
         <p id="csv-preview-label" style="font-size:13px;color:var(--text2);margin-bottom:10px;"></p>
         <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
@@ -250,35 +315,281 @@
       </div>
     </div>
   </div>
-
 </div>
 
 <script>
-  // ── Config ────────────────────────────────────────────────────
-  const SUPABASE_URL    = 'https://padjppknqnvnrqndpdrk.supabase.co';
-  const SUPABASE_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhZGpwcGtucW52bnJxbmRwZHJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTQ1MDMsImV4cCI6MjA5NDA3MDUwM30.dZTVwf7EYyC9XM3M8vKYtyvblkLPcl8F9tiZOn4T0JI';
-  const STORAGE_BUCKET  = 'venue-photos';
-  const CSV_COLUMNS     = ['name','city','neighbourhood','lat','lng','seating_type','pet_menu','dog_sizes_allowed','is_active','status','indoor_verified','last_verified_date','google_place_id','notes'];
+  const SUPABASE_URL  = 'https://padjppknqnvnrqndpdrk.supabase.co';
+  const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhZGpwcGtucW52bnJxbmRwZHJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTQ1MDMsImV4cCI6MjA5NDA3MDUwM30.dZTVwf7EYyC9XM3M8vKYtyvblkLPcl8F9tiZOn4T0JI';
+  const STORAGE_BUCKET = 'venue-photos';
+  const CSV_COLUMNS   = ['name','city','neighbourhood','address','seating_type','dog_sizes_allowed','pet_menu','leash_free','google_place_id','notes'];
+
+  // Apply saved theme before render to avoid flash
+  (function() {
+    const t = localStorage.getItem('pawmap-theme');
+    if (t) {
+      document.documentElement.setAttribute('data-theme', t);
+      const btn = document.getElementById('dark-mode-btn');
+      if (btn) btn.textContent = t === 'dark' ? '☀ Light Mode' : '☽ Dark Mode';
+    }
+  })();
 
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   // ── State ─────────────────────────────────────────────────────
-  let venues = [];
-  let amenityTags = [];
-  let reports = [];
-  let communityPhotos = [];
-  let pendingPhotos = [];   // all community_photos where is_visible = false
-  let activeFilter = 'all';
-  let selectedVenue = null;
-  let currentView = 'venues';
-  let csvRows = [];
-  let selectedIds = new Set();
+  let venues = [], amenityTags = [], reports = [], communityPhotos = [], pendingPhotos = [];
+  let activeFilter = 'all', selectedVenue = null, currentView = 'venues';
+  let csvRows = [], selectedIds = new Set();
+  let venueListMode = false, searchQuery = '';
+  let map = null, venueMarkers = new Map(), infoWindow = null;
 
   const SEATING_LABEL = { indoor: 'Indoor', outdoor: 'Outdoor', both: 'Indoor & Outdoor' };
 
+  const MAP_STYLE = [
+    { elementType: 'geometry', stylers: [{ color: '#EDF0EB' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#D6DFE8' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#FFFFFF' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#E8E8E4' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#FFFFFF' }] },
+    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#EDF0EB' }] },
+    { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#E8EDE6' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#6B6B6B' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#F7F7F5' }] },
+    { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#D0D0CC' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#1A1A1A' }] },
+  ];
+
+  const MAP_STYLE_DARK = [
+    { elementType: 'geometry', stylers: [{ color: '#1A1A1A' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0D1117' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2A2A2A' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#333333' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#333333' }] },
+    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#1E1E1E' }] },
+    { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#1A1A1A' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#888888' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#111111' }] },
+    { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#3A3A3A' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#AAAAAA' }] },
+  ];
+
+  // ── Map ───────────────────────────────────────────────────────
+  function initMap() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    map = new google.maps.Map(document.getElementById('map-container'), {
+      center: { lat: 1.3521, lng: 103.8198 }, zoom: 12, styles: isDark ? MAP_STYLE_DARK : MAP_STYLE,
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+      zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
+    });
+    infoWindow = new google.maps.InfoWindow({ disableAutoPan: true });
+    map.addListener('zoom_changed', () => {
+      const btn = document.getElementById('reset-map-btn');
+      if (btn) btn.style.display = map.getZoom() > 13 ? 'block' : 'none';
+    });
+    loadVenueMarkers();
+  }
+
+  function getMarkerColor(v) {
+    if (v.status !== 'live') return '#ABABAB';
+    const ago60 = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+    if (v.indoor_verified && v.last_verified_date && new Date(v.last_verified_date) >= ago60) return '#22C55E';
+    if (v.seating_type === 'outdoor') return '#F97316';
+    return '#0A0A0A';
+  }
+
+  function shouldShowMarker(v) {
+    const matchesFilter = activeFilter === 'all' || v.status === activeFilter;
+    const matchesSearch = !searchQuery ||
+      v.name.toLowerCase().includes(searchQuery) ||
+      (v.neighbourhood || '').toLowerCase().includes(searchQuery);
+    return matchesFilter && matchesSearch;
+  }
+
+  function markerIcon(v, scale, strokeWeight) {
+    return { path: google.maps.SymbolPath.CIRCLE, scale, fillColor: getMarkerColor(v), fillOpacity: 1, strokeColor: '#FFFFFF', strokeWeight };
+  }
+
+  // Spread overlapping markers radially so each pin is individually visible.
+  // Venues within THRESHOLD degrees (~30m) are grouped and fanned out in a circle.
+  function buildMarkerPositions(vs) {
+    const THRESHOLD = 0.0003;
+    const RADIUS    = 0.00022; // ~25m spread radius
+    const positions = {};
+    const used = new Set();
+    vs.forEach(v => {
+      if (!v.lat || !v.lng || used.has(v.id)) return;
+      const group = [v];
+      used.add(v.id);
+      vs.forEach(u => {
+        if (used.has(u.id) || !u.lat || !u.lng) return;
+        if (Math.abs(v.lat - u.lat) < THRESHOLD && Math.abs(v.lng - u.lng) < THRESHOLD) {
+          group.push(u); used.add(u.id);
+        }
+      });
+      if (group.length === 1) {
+        positions[v.id] = { lat: parseFloat(v.lat), lng: parseFloat(v.lng) };
+      } else {
+        const clat = group.reduce((s, x) => s + parseFloat(x.lat), 0) / group.length;
+        const clng = group.reduce((s, x) => s + parseFloat(x.lng), 0) / group.length;
+        group.forEach((u, i) => {
+          const angle = (2 * Math.PI * i) / group.length - Math.PI / 2;
+          positions[u.id] = { lat: clat + RADIUS * Math.cos(angle), lng: clng + RADIUS * Math.sin(angle) };
+        });
+      }
+    });
+    return positions;
+  }
+
+  function loadVenueMarkers() {
+    if (!map) return;
+    venueMarkers.forEach(m => m.setMap(null));
+    venueMarkers.clear();
+    const markerPositions = buildMarkerPositions(venues);
+    venues.forEach(v => {
+      if (!v.lat || !v.lng) return;
+      const marker = new google.maps.Marker({
+        position: markerPositions[v.id] || { lat: parseFloat(v.lat), lng: parseFloat(v.lng) },
+        map: shouldShowMarker(v) ? map : null,
+        title: v.name,
+        icon: markerIcon(v, 9, 2.5),
+      });
+      marker.addListener('click', () => openVenue(v.id));
+      marker.addListener('mouseover', () => {
+        // Grow pin + show tooltip
+        if (!selectedVenue || selectedVenue.id !== v.id) { marker.setIcon(markerIcon(v, 14, 3)); marker.setZIndex(99); }
+        // Highlight list card
+        const card = document.getElementById(`vc-${v.id}`);
+        if (card) card.style.boxShadow = '0 0 0 2px var(--border2)';
+        infoWindow.setContent(
+          `<div style="font-family:'Urbanist',sans-serif;padding:2px;">` +
+          `<p style="font-size:13px;font-weight:700;color:#0A0A0A;margin-bottom:2px;">${h(v.name)}</p>` +
+          (v.neighbourhood ? `<p style="font-size:11px;color:#6B6B6B;">${h(v.neighbourhood)}</p>` : '') +
+          `</div>`
+        );
+        infoWindow.open(map, marker);
+      });
+      marker.addListener('mouseout', () => {
+        if (!selectedVenue || selectedVenue.id !== v.id) { marker.setIcon(markerIcon(v, 9, 2.5)); marker.setZIndex(1); }
+        const card = document.getElementById(`vc-${v.id}`);
+        if (card && !(selectedVenue && selectedVenue.id === v.id)) card.style.boxShadow = '';
+        infoWindow.close();
+      });
+      venueMarkers.set(v.id, marker);
+    });
+  }
+
+  function updateMarkerVisibility() {
+    venueMarkers.forEach((marker, id) => {
+      const v = venues.find(x => x.id === id);
+      if (v) marker.setMap(shouldShowMarker(v) ? map : null);
+    });
+  }
+
+  // ── Map UX helpers ────────────────────────────────────────────
+  function flyTo(lat, lng) {
+    if (!map) return;
+    const pos = { lat: parseFloat(lat), lng: parseFloat(lng) };
+    // Pan at current zoom (no tile reload) then settle at zoom 16
+    map.panTo(pos);
+    google.maps.event.addListenerOnce(map, 'idle', () => {
+      if (map.getZoom() !== 16) map.setZoom(16);
+    });
+  }
+
+  function highlightMarker(id) {
+    const marker = venueMarkers.get(id);
+    if (!marker || (selectedVenue && selectedVenue.id === id)) return;
+    const v = venues.find(x => x.id === id);
+    if (v) { marker.setIcon(markerIcon(v, 14, 3)); marker.setZIndex(99); }
+  }
+
+  function unhighlightMarker(id) {
+    const marker = venueMarkers.get(id);
+    if (!marker || (selectedVenue && selectedVenue.id === id)) return;
+    const v = venues.find(x => x.id === id);
+    if (v) { marker.setIcon(markerIcon(v, 9, 2.5)); marker.setZIndex(1); }
+  }
+
+  function setSelectedMarker(id) {
+    const marker = venueMarkers.get(id);
+    if (!marker) return;
+    const v = venues.find(x => x.id === id);
+    if (v) { marker.setIcon(markerIcon(v, 12, 4)); marker.setZIndex(200); }
+  }
+
+  function clearSelectedMarker(id) {
+    const marker = venueMarkers.get(id);
+    if (!marker) return;
+    const v = venues.find(x => x.id === id);
+    if (v) { marker.setIcon(markerIcon(v, 9, 2.5)); marker.setZIndex(1); }
+  }
+
+  function resetMapView() {
+    if (!map) return;
+    map.panTo({ lat: 1.3521, lng: 103.8198 });
+    google.maps.event.addListenerOnce(map, 'idle', () => map.setZoom(12));
+  }
+
+  // ── Search ────────────────────────────────────────────────────
+  function handleSearch(query) {
+    searchQuery = query.toLowerCase().trim();
+    if (currentView === 'venues') { updateMarkerVisibility(); renderVenueList(); }
+  }
+
+  // ── View switching ────────────────────────────────────────────
+  function showMapView() {
+    document.getElementById('list-panel').style.display = 'none';
+    document.getElementById('map-wrapper').style.display = 'block';
+    document.getElementById('content-container').style.display = 'none';
+    document.getElementById('stats-card').style.display = 'block';
+    document.getElementById('map-legend').style.display = 'block';
+    updateViewToggle('map');
+    if (map) google.maps.event.trigger(map, 'resize');
+  }
+
+  function showListSplitView() {
+    document.getElementById('list-panel').style.display = 'block';
+    document.getElementById('map-wrapper').style.display = 'block';
+    document.getElementById('content-container').style.display = 'none';
+    document.getElementById('stats-card').style.display = 'block';
+    document.getElementById('map-legend').style.display = 'block';
+    if (map) google.maps.event.trigger(map, 'resize');
+  }
+
+  function showContentView() {
+    document.getElementById('list-panel').style.display = 'none';
+    document.getElementById('map-wrapper').style.display = 'none';
+    document.getElementById('content-container').style.display = 'block';
+    document.getElementById('stats-card').style.display = 'none';
+    document.getElementById('map-legend').style.display = 'none';
+    updateViewToggle('none');
+  }
+
+  function updateViewToggle(active) {
+    const mapBtn  = document.getElementById('toggle-map-btn');
+    const listBtn = document.getElementById('toggle-list-btn');
+    if (mapBtn)  mapBtn.className  = 'view-toggle-btn' + (active === 'map'  ? ' active' : '');
+    if (listBtn) listBtn.className = 'view-toggle-btn' + (active === 'list' ? ' active' : '');
+  }
+
+  function switchToMapView() {
+    venueListMode = false; currentView = 'venues';
+    showMapView(); updateMarkerVisibility(); renderSidebar();
+  }
+
+  function switchToListView() {
+    venueListMode = true; currentView = 'venues';
+    showListSplitView();
+    renderSidebar(); renderVenueList();
+  }
+
   // ── Init ──────────────────────────────────────────────────────
   async function init() {
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && selectedVenue) closePanel(); });
     showLoading();
     await Promise.all([loadVenues(), loadTags(), loadReports(), loadPendingPhotos()]);
     renderAll();
@@ -290,8 +601,9 @@
   }
 
   function showLoading() {
-    document.getElementById('main-content').innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:center;height:240px;color:var(--text2);font-size:14px;gap:8px;">
+    showContentView();
+    document.getElementById('content-container').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;height:240px;color:var(--text3);font-size:14px;gap:8px;">
         <svg style="animation:spin 1s linear infinite;width:16px;height:16px;" fill="none" viewBox="0 0 24 24">
           <circle style="opacity:0.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
           <path style="opacity:0.75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
@@ -304,25 +616,21 @@
     const { data, error } = await db.from('venues').select('*').order('id', { ascending: false });
     if (!error && data) venues = data;
   }
-
   async function loadTags() {
     const { data, error } = await db.from('amenity_tags').select('*').order('name');
     if (!error && data) amenityTags = data;
   }
-
   async function loadReports() {
     const { data, error } = await db.from('change_reports').select('*').order('created_at', { ascending: false });
     if (!error && data) reports = data;
   }
 
   function renderAll() {
-    renderStats();
-    renderSidebar();
-    renderPendingPhotosBadge();
-    if (currentView === 'tags') renderTagsView();
-    else if (currentView === 'reports') renderReportsView();
+    renderStatsCard(); renderSidebar(); renderPendingPhotosBadge();
+    if (currentView === 'tags') { showContentView(); renderTagsView(); }
+    else if (currentView === 'reports') { showContentView(); renderReportsView(); }
     else if (currentView === 'pending-photos') showPendingPhotosView();
-    else renderVenueList();
+    else { venueListMode = true; showListSplitView(); loadVenueMarkers(); renderVenueList(); }
   }
 
   function renderPendingPhotosBadge() {
@@ -330,154 +638,82 @@
     const badge = document.getElementById('pending-photos-badge');
     if (!btn || !badge) return;
     if (pendingPhotos.length > 0) {
-      btn.style.display = 'block';
+      btn.style.opacity = '1';
       badge.textContent = pendingPhotos.length;
+      badge.style.display = 'inline-block';
     } else {
-      btn.style.display = 'none';
+      btn.style.opacity = '0.45';
+      badge.style.display = 'none';
     }
   }
 
-  function showPendingPhotosView() {
-    currentView = 'pending-photos';
-    closePanel();
-    // Group pending photos by venue
-    const byVenue = {};
-    pendingPhotos.forEach(p => {
-      if (!byVenue[p.venue_id]) byVenue[p.venue_id] = [];
-      byVenue[p.venue_id].push(p);
-    });
-    const venueIds = Object.keys(byVenue).map(Number);
-    const venuesWithPending = venues.filter(v => venueIds.includes(v.id));
+  // ── Dark mode ────────────────────────────────────────────────
+  function toggleDarkMode() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const next = isDark ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('pawmap-theme', next);
+    const btn = document.getElementById('dark-mode-btn');
+    if (btn) btn.textContent = next === 'dark' ? '☀ Light Mode' : '☽ Dark Mode';
+    if (map) map.setOptions({ styles: next === 'dark' ? MAP_STYLE_DARK : MAP_STYLE });
+  }
 
-    if (venuesWithPending.length === 0) {
-      document.getElementById('main-content').innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;height:240px;color:var(--text2);font-size:14px;">
-          No pending photos — all caught up!
-        </div>`;
-      return;
-    }
+  // ── Toast ─────────────────────────────────────────────────────
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2500);
+  }
 
-    document.getElementById('main-content').innerHTML = `
-      <div style="max-width:700px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-          <h2 style="font-size:18px;font-weight:700;color:var(--text);">Pending Photos <span style="color:var(--orange);">(${pendingPhotos.length})</span></h2>
-          <div style="display:flex;gap:8px;">
-            <button onclick="approveAllGlobalPhotos()" class="btn-primary" style="width:auto;padding:8px 20px;">✓ Approve all</button>
-            <button onclick="rejectAllGlobalPhotos()" class="btn-danger" style="padding:8px 20px;">✕ Reject all</button>
+  // ── Stats card ────────────────────────────────────────────────
+  function renderStatsCard() {
+    const live    = venues.filter(v => v.status === 'live').length;
+    const pending = venues.filter(v => v.status === 'pending').length;
+    const total   = venues.length;
+    const indoor  = venues.filter(v => v.status === 'live' && v.seating_type === 'indoor').length;
+    const outdoor = venues.filter(v => v.status === 'live' && v.seating_type === 'outdoor').length;
+    const both    = venues.filter(v => v.status === 'live' && v.seating_type === 'both').length;
+    const livePct = total > 0 ? Math.round(live / total * 100) : 0;
+
+    document.getElementById('stats-card').innerHTML = `
+      <p style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Overview</p>
+      <p style="font-size:30px;font-weight:800;color:var(--text);line-height:1;margin-bottom:2px;">${total}</p>
+      <p style="font-size:11px;color:var(--text2);margin-bottom:12px;">total venues</p>
+      <div style="height:4px;background:var(--border);border-radius:4px;margin-bottom:12px;overflow:hidden;">
+        <div style="height:100%;width:${livePct}%;background:#22C55E;border-radius:4px;transition:width 0.5s;"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;"></span>
+            <span style="font-size:12px;color:var(--text2);">Live</span>
           </div>
+          <span style="font-size:13px;font-weight:700;color:var(--text);">${live}</span>
         </div>
-        <div style="display:flex;flex-direction:column;gap:16px;">
-          ${venuesWithPending.map(v => `
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                <div>
-                  <p style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px;">${h(v.name)}</p>
-                  <p style="font-size:12px;color:var(--text2);">${h(v.neighbourhood)} · ${byVenue[v.id].length} pending</p>
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <button onclick="approveVenuePhotos(${v.id})"
-                    style="padding:6px 14px;border-radius:8px;background:var(--green);border:none;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">
-                    ✓ Approve all
-                  </button>
-                  <button onclick="rejectVenuePhotos(${v.id})"
-                    style="padding:6px 14px;border-radius:8px;background:var(--surface2);border:1px solid var(--red-border);color:var(--red);font-size:13px;font-weight:500;cursor:pointer;">
-                    ✕ Reject all
-                  </button>
-                  <button onclick="openVenue(${v.id})"
-                    style="padding:6px 14px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;">
-                    Edit venue
-                  </button>
-                </div>
-              </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                ${byVenue[v.id].map(p => `
-                  <div style="position:relative;width:88px;height:88px;flex-shrink:0;">
-                    <img src="${h(p.photo_url)}" onclick="openPhotoLightbox('${a(p.photo_url)}')"
-                      style="width:100%;height:100%;border-radius:8px;object-fit:cover;cursor:pointer;outline:2px solid var(--orange);outline-offset:-2px;">
-                    <button onclick="rejectSinglePendingPhoto(${p.id})" title="Reject"
-                      style="position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.65);border:1.5px solid rgba(255,255,255,0.5);color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `).join('')}
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:var(--orange);flex-shrink:0;"></span>
+            <span style="font-size:12px;color:var(--text2);">Pending</span>
+          </div>
+          <span style="font-size:13px;font-weight:700;color:var(--text);">${pending}</span>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:10px;">
+        <p style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Live seating</p>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Indoor</span><span style="font-weight:600;color:var(--text);">${indoor}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Outdoor</span><span style="font-weight:600;color:var(--text);">${outdoor}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Both</span><span style="font-weight:600;color:var(--text);">${both}</span></div>
         </div>
       </div>`;
   }
 
-  async function approveVenuePhotos(venueId) {
-    const ids = pendingPhotos.filter(p => p.venue_id === venueId).map(p => p.id);
-    if (!confirm(`Approve ${ids.length} photo(s) for this venue? They will become visible in the app.`)) return;
-    const { error } = await db.from('community_photos').update({ is_visible: true }).in('id', ids);
-    if (error) { alert('Error: ' + error.message); return; }
-    pendingPhotos = pendingPhotos.filter(p => p.venue_id !== venueId);
-    renderPendingPhotosBadge();
-    showPendingPhotosView();
-  }
-
-  async function approveAllGlobalPhotos() {
-    const ids = pendingPhotos.map(p => p.id);
-    if (ids.length === 0) return;
-    if (!confirm(`Approve all ${ids.length} pending photos? They will become visible in the app.`)) return;
-    const { error } = await db.from('community_photos').update({ is_visible: true }).in('id', ids);
-    if (error) { alert('Error: ' + error.message); return; }
-    pendingPhotos = [];
-    renderPendingPhotosBadge();
-    showPendingPhotosView();
-  }
-
-  async function rejectAllGlobalPhotos() {
-    if (!confirm(`Permanently delete all ${pendingPhotos.length} pending photos?`)) return;
-    const ids = pendingPhotos.map(p => p.id);
-    const { error } = await db.from('community_photos').delete().in('id', ids);
-    if (error) { alert('Error: ' + error.message); return; }
-    pendingPhotos = [];
-    renderPendingPhotosBadge();
-    showPendingPhotosView();
-  }
-
-  async function rejectVenuePhotos(venueId) {
-    const ids = pendingPhotos.filter(p => p.venue_id === venueId).map(p => p.id);
-    if (!confirm(`Delete ${ids.length} pending photo(s) for this venue?`)) return;
-    const { error } = await db.from('community_photos').delete().in('id', ids);
-    if (error) { alert('Error: ' + error.message); return; }
-    pendingPhotos = pendingPhotos.filter(p => p.venue_id !== venueId);
-    renderPendingPhotosBadge();
-    showPendingPhotosView();
-  }
-
-  async function rejectSinglePendingPhoto(id) {
-    if (!confirm('Permanently delete this photo?')) return;
-    const { error } = await db.from('community_photos').delete().eq('id', id);
-    if (error) { alert('Error: ' + error.message); return; }
-    pendingPhotos = pendingPhotos.filter(p => p.id !== id);
-    renderPendingPhotosBadge();
-    showPendingPhotosView();
-  }
-
-  function openVenue(id) {
-    const v = venues.find(v => v.id === id);
-    if (v) { selectedVenue = v; currentView = 'venues'; openPanel(id); }
-  }
-
-  // ── Stats ─────────────────────────────────────────────────────
-  function renderStats() {
-    const live    = venues.filter(v => v.status === 'live').length;
-    const pending = venues.filter(v => v.status === 'pending').length;
-    const total   = venues.length;
-    document.getElementById('stats').innerHTML = `
-      <span style="padding:4px 10px;border-radius:100px;font-size:12px;font-weight:600;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);">Live ${live}</span>
-      <span style="padding:4px 10px;border-radius:100px;font-size:12px;font-weight:600;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);">Pending ${pending}</span>
-      <span style="padding:4px 10px;border-radius:100px;font-size:12px;font-weight:600;background:var(--surface2);color:var(--text2);border:1px solid var(--border2);">Total ${total}</span>`;
-  }
-
   // ── Sidebar ───────────────────────────────────────────────────
   function setFilter(f) {
-    activeFilter = f;
-    currentView = 'venues';
-    selectedIds.clear();
-    renderSidebar();
-    renderVenueList();
+    activeFilter = f; currentView = 'venues'; venueListMode = true; selectedIds.clear();
+    renderSidebar(); showListSplitView(); updateMarkerVisibility(); renderVenueList(); renderStatsCard();
   }
 
   function renderSidebar() {
@@ -487,145 +723,228 @@
       live:     venues.filter(v => v.status === 'live').length,
       rejected: venues.filter(v => v.status === 'rejected').length,
     };
-    ['all', 'pending', 'live', 'rejected'].forEach(f => {
+    ['all','pending','live','rejected'].forEach(f => {
       const btn = document.getElementById('filter-' + f);
+      if (!btn) return;
       const active = currentView === 'venues' && activeFilter === f;
       btn.className = 'sidebar-btn' + (active ? ' active' : '');
       btn.textContent = f.charAt(0).toUpperCase() + f.slice(1) + ' (' + counts[f] + ')';
     });
     const tagsBtn = document.getElementById('nav-tags');
-    tagsBtn.className = 'sidebar-btn' + (currentView === 'tags' ? ' active' : '');
+    if (tagsBtn) tagsBtn.className = 'sidebar-btn' + (currentView === 'tags' ? ' active' : '');
     const unresolved = reports.filter(r => !r.resolved).length;
     const reportsBtn = document.getElementById('nav-reports');
-    reportsBtn.className = 'sidebar-btn' + (currentView === 'reports' ? ' active' : '');
-    reportsBtn.innerHTML = '🚩 &nbsp;Reports' + (unresolved > 0 ? ` <span style="display:inline-block;padding:1px 7px;border-radius:100px;font-size:11px;font-weight:700;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);margin-left:4px;">${unresolved}</span>` : '');
+    if (reportsBtn) {
+      reportsBtn.className = 'sidebar-btn' + (currentView === 'reports' ? ' active' : '');
+      reportsBtn.innerHTML = 'Reports' + (unresolved > 0
+        ? ` <span style="display:inline-block;padding:1px 6px;border-radius:100px;font-size:10px;font-weight:700;background:var(--orange);color:#fff;margin-left:3px;">${unresolved}</span>` : '');
+    }
+    const photosBtn = document.getElementById('nav-photos');
+    if (photosBtn) photosBtn.className = 'sidebar-btn' + (currentView === 'pending-photos' ? ' active' : '');
+  }
+
+  // ── Pending photos view ───────────────────────────────────────
+  function showPendingPhotosView() {
+    currentView = 'pending-photos'; venueListMode = false;
+    closePanel(); showContentView(); renderSidebar();
+    const byVenue = {};
+    pendingPhotos.forEach(p => { if (!byVenue[p.venue_id]) byVenue[p.venue_id] = []; byVenue[p.venue_id].push(p); });
+    const venueIds = Object.keys(byVenue).map(Number);
+    const venuesWithPending = venues.filter(v => venueIds.includes(v.id));
+    if (venuesWithPending.length === 0) {
+      document.getElementById('content-container').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:240px;color:var(--text2);font-size:14px;">No pending photos — all caught up!</div>`;
+      return;
+    }
+    document.getElementById('content-container').innerHTML = `
+      <div style="max-width:680px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <h2 style="font-size:20px;font-weight:800;color:var(--text);">Pending Photos <span style="color:var(--orange);font-weight:600;">(${pendingPhotos.length})</span></h2>
+          <div style="display:flex;gap:8px;">
+            <button onclick="approveAllGlobalPhotos()" class="btn-primary" style="width:auto;padding:8px 18px;">✓ Approve all</button>
+            <button onclick="rejectAllGlobalPhotos()" class="btn-danger" style="padding:8px 18px;">✕ Reject all</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          ${venuesWithPending.map(v => `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <div>
+                  <p style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">${h(v.name)}</p>
+                  <p style="font-size:12px;color:var(--text2);">${h(v.neighbourhood)} · ${byVenue[v.id].length} pending</p>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button onclick="approveVenuePhotos(${v.id})" style="padding:6px 12px;border-radius:8px;background:var(--green);border:none;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">✓ Approve all</button>
+                  <button onclick="rejectVenuePhotos(${v.id})"  style="padding:6px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--red-border);color:var(--red);font-size:12px;font-weight:500;cursor:pointer;font-family:'Urbanist',sans-serif;">✕ Reject all</button>
+                  <button onclick="openVenue(${v.id})"          style="padding:6px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;font-family:'Urbanist',sans-serif;">Edit</button>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                ${byVenue[v.id].map(p => `
+                  <div style="position:relative;width:80px;height:80px;flex-shrink:0;">
+                    <img src="${h(p.photo_url)}" onclick="openPhotoLightbox('${a(p.photo_url)}')" style="width:100%;height:100%;border-radius:8px;object-fit:cover;cursor:pointer;outline:2px solid var(--orange);outline-offset:-2px;">
+                    <button onclick="rejectSinglePendingPhoto(${p.id})" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.65);border:1.5px solid rgba(255,255,255,0.5);color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
+                  </div>`).join('')}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  async function approveVenuePhotos(venueId) {
+    const ids = pendingPhotos.filter(p => p.venue_id === venueId).map(p => p.id);
+    if (!confirm(`Approve ${ids.length} photo(s)?`)) return;
+    const { error } = await db.from('community_photos').update({ is_visible: true }).in('id', ids);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = pendingPhotos.filter(p => p.venue_id !== venueId);
+    renderPendingPhotosBadge(); showPendingPhotosView();
+  }
+  async function approveAllGlobalPhotos() {
+    const ids = pendingPhotos.map(p => p.id);
+    if (!ids.length || !confirm(`Approve all ${ids.length} pending photos?`)) return;
+    const { error } = await db.from('community_photos').update({ is_visible: true }).in('id', ids);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = []; renderPendingPhotosBadge(); showPendingPhotosView();
+  }
+  async function rejectAllGlobalPhotos() {
+    if (!confirm(`Delete all ${pendingPhotos.length} pending photos?`)) return;
+    const ids = pendingPhotos.map(p => p.id);
+    const { error } = await db.from('community_photos').delete().in('id', ids);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = []; renderPendingPhotosBadge(); showPendingPhotosView();
+  }
+  async function rejectVenuePhotos(venueId) {
+    const ids = pendingPhotos.filter(p => p.venue_id === venueId).map(p => p.id);
+    if (!confirm(`Delete ${ids.length} photo(s)?`)) return;
+    const { error } = await db.from('community_photos').delete().in('id', ids);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = pendingPhotos.filter(p => p.venue_id !== venueId);
+    renderPendingPhotosBadge(); showPendingPhotosView();
+  }
+  async function rejectSinglePendingPhoto(id) {
+    if (!confirm('Permanently delete this photo?')) return;
+    const { error } = await db.from('community_photos').delete().eq('id', id);
+    if (error) { alert('Error: ' + error.message); return; }
+    pendingPhotos = pendingPhotos.filter(p => p.id !== id);
+    renderPendingPhotosBadge(); showPendingPhotosView();
   }
 
   // ── Venue list ────────────────────────────────────────────────
   function renderVenueList() {
-    const filtered = activeFilter === 'all' ? venues : venues.filter(v => v.status === activeFilter);
+    let filtered = activeFilter === 'all' ? venues : venues.filter(v => v.status === activeFilter);
+    if (searchQuery) filtered = filtered.filter(v =>
+      v.name.toLowerCase().includes(searchQuery) ||
+      (v.neighbourhood || '').toLowerCase().includes(searchQuery)
+    );
     const isPendingView = activeFilter === 'pending';
-
-    // Build name → [venue list] map across ALL venues to detect duplicates
     const nameMap = {};
-    venues.forEach(v => {
-      const key = v.name.trim().toLowerCase();
-      if (!nameMap[key]) nameMap[key] = [];
-      nameMap[key].push(v);
-    });
+    venues.forEach(v => { const k = v.name.trim().toLowerCase(); if (!nameMap[k]) nameMap[k] = []; nameMap[k].push(v); });
     const getDupeOthers = v => nameMap[v.name.trim().toLowerCase()].filter(x => x.id !== v.id);
 
     if (filtered.length === 0) {
-      document.getElementById('main-content').innerHTML = `
+      document.getElementById('list-panel').innerHTML = `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:240px;gap:12px;color:var(--text3);">
-          <span style="font-size:48px;">🐾</span>
-          <span style="font-size:14px;">No venues here</span>
+          <span style="font-size:40px;">🐾</span>
+          <span style="font-size:14px;">${searchQuery ? 'No venues match your search' : 'No venues here'}</span>
         </div>`;
       return;
     }
 
-    let html = '';
+    let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <h2 style="font-size:17px;font-weight:800;color:var(--text);">${activeFilter === 'all' ? 'All' : activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Venues <span style="font-weight:500;color:var(--text2);">(${filtered.length})</span></h2>
+    </div>`;
 
-    // Bulk action bar — only on Pending view
     if (isPendingView) {
       html += `
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;gap:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;gap:12px;">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text2);user-select:none;">
-            <input type="checkbox" id="select-all-cb" style="width:16px;height:16px;accent-color:var(--text);cursor:pointer;" onchange="toggleSelectAll(this.checked)">
-            Select all
+            <input type="checkbox" id="select-all-cb" style="width:16px;height:16px;accent-color:var(--text);cursor:pointer;" onchange="toggleSelectAll(this.checked)"> Select all
           </label>
           <div style="display:flex;align-items:center;gap:10px;">
             <span id="selected-count" style="font-size:13px;color:var(--text2);">0 selected</span>
-            <button id="bulk-approve-btn" onclick="bulkApproveSelected()"
-              style="padding:8px 16px;border-radius:8px;background:var(--green);color:#fff;font-size:13px;font-weight:600;border:none;cursor:not-allowed;opacity:0.4;transition:opacity 0.15s;">
-              Publish Selected
-            </button>
+            <button id="bulk-approve-btn" onclick="bulkApproveSelected()" style="padding:7px 14px;border-radius:8px;background:var(--green);color:#fff;font-size:13px;font-weight:600;border:none;cursor:not-allowed;opacity:0.4;transition:opacity 0.15s;font-family:'Urbanist',sans-serif;">Publish Selected</button>
           </div>
         </div>`;
-
-      // Duplicate warning banner
       const dupeVenues = filtered.filter(v => getDupeOthers(v).length > 0);
       if (dupeVenues.length > 0) {
         const dupeNames = [...new Set(dupeVenues.map(v => v.name.trim()))];
-        html += `
-          <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px;">
-            <span style="font-size:16px;flex-shrink:0;line-height:1.4;">⚠️</span>
-            <div>
-              <p style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:3px;">Possible duplicates detected</p>
-              <p style="font-size:12px;color:var(--text2);line-height:1.5;">${dupeNames.map(n => `<strong style="color:var(--text);">${h(n)}</strong>`).join(', ')} appear${dupeNames.length === 1 ? 's' : ''} more than once. Check before publishing.</p>
-            </div>
-          </div>`;
+        html += `<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;">
+          <span style="font-size:15px;flex-shrink:0;line-height:1.4;">⚠️</span>
+          <div><p style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:3px;">Possible duplicates</p>
+          <p style="font-size:12px;color:var(--text2);">${dupeNames.map(n => `<strong style="color:var(--text);">${h(n)}</strong>`).join(', ')} appear${dupeNames.length === 1 ? 's' : ''} more than once.</p></div>
+        </div>`;
       }
     }
 
     html += filtered.map(v => {
-      const vTags     = Array.isArray(v.tags) ? v.tags : [];
-      const verified  = v.indoor_verified && v.last_verified_date;
+      const vTags = Array.isArray(v.tags) ? v.tags : [];
+      const verified = v.indoor_verified && v.last_verified_date;
       const dupeOthers = getDupeOthers(v);
-      const hasDupe   = dupeOthers.length > 0;
-      const checked   = selectedIds.has(v.id);
-
-      const borderColor = hasDupe ? 'var(--orange-border)' : 'var(--border)';
+      const hasDupe = dupeOthers.length > 0;
+      const checked = selectedIds.has(v.id);
+      const isSelected = selectedVenue && selectedVenue.id === v.id;
       const cardHtml = `
-        <div onclick="openVenue(${v.id})" class="venue-card"
-          style="flex:1;background:var(--surface);border-radius:12px;border:1px solid ${borderColor};cursor:pointer;overflow:hidden;display:flex;">
-          ${v.cover_photo_url ? `<img src="${h(v.cover_photo_url)}" style="width:72px;height:72px;object-fit:cover;flex-shrink:0;">` : `<div style="width:72px;height:72px;background:var(--surface2);flex-shrink:0;"></div>`}
-          <div style="flex:1;min-width:0;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div id="vc-${v.id}" onclick="openVenue(${v.id})" onmouseenter="highlightMarker(${v.id})" onmouseleave="unhighlightMarker(${v.id})" class="venue-card${isSelected ? ' selected' : ''}" style="flex:1;background:var(--surface);border-radius:10px;border:1px solid ${hasDupe ? 'var(--orange-border)' : 'var(--border)'};cursor:pointer;overflow:hidden;display:flex;">
+          ${v.cover_photo_url
+            ? `<img src="${h(v.cover_photo_url)}" style="width:64px;height:64px;object-fit:cover;flex-shrink:0;">`
+            : `<div style="width:64px;height:64px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;"><span style="font-size:18px;opacity:0.25;">🐾</span></div>`}
+          <div style="flex:1;min-width:0;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
             <div style="flex:1;min-width:0;">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;">
-                <span style="font-weight:600;font-size:14px;color:var(--text);">${h(v.name)}</span>
-                ${verified ? '<span style="font-size:11px;font-weight:600;color:var(--green);white-space:nowrap;">Indoor Verified ✓</span>' : ''}
-                ${hasDupe ? `<span style="font-size:11px;font-weight:600;color:var(--orange);white-space:nowrap;">⚠ Duplicate</span>` : ''}
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;flex-wrap:wrap;">
+                <span style="font-weight:700;font-size:13px;color:var(--text);">${h(v.name)}</span>
+                ${verified ? '<span style="font-size:11px;font-weight:600;color:var(--green);">Indoor Verified ✓</span>' : ''}
+                ${hasDupe ? `<span style="font-size:11px;font-weight:600;color:var(--orange);">⚠ Duplicate</span>` : ''}
               </div>
-              <p style="font-size:12px;color:var(--text2);margin-bottom:${hasDupe ? '3px' : '6px'};">${[v.neighbourhood, v.city].filter(Boolean).map(h).join(' · ')}</p>
-              ${hasDupe ? `<p style="font-size:11px;color:var(--orange);margin-bottom:6px;">Also exists as: ${dupeOthers.map(x => `<span style="font-weight:600;">${x.status}</span>`).join(', ')}</p>` : ''}
-              <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <p style="font-size:11px;color:var(--text2);margin-bottom:5px;">${[v.neighbourhood, v.city].filter(Boolean).map(h).join(' · ')}</p>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;">
                 ${pill(SEATING_LABEL[v.seating_type] || v.seating_type)}
                 ${v.pet_menu ? pill('Pet Menu') : ''}
                 ${vTags.slice(0, 2).map(t => pill(h(t))).join('')}
-                ${vTags.length > 2 ? `<span style="font-size:11px;color:var(--text3);padding:2px 6px;">+${vTags.length - 2}</span>` : ''}
+                ${vTags.length > 2 ? `<span style="font-size:11px;color:var(--text3);padding:2px 5px;">+${vTags.length - 2}</span>` : ''}
               </div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:7px;flex-shrink:0;">
               ${statusBadge(v.status)}
-              <span style="color:var(--text3);font-size:15px;">→</span>
+              <span style="color:var(--text3);font-size:14px;">→</span>
             </div>
           </div>
         </div>`;
-
-      if (isPendingView) {
-        return `
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <input type="checkbox" ${checked ? 'checked' : ''}
-              onclick="toggleSelect(${v.id}, this.checked, event)"
-              style="width:18px;height:18px;flex-shrink:0;accent-color:var(--text);cursor:pointer;">
-            ${cardHtml}
-          </div>`;
-      }
-      return `<div style="margin-bottom:8px;">${cardHtml}</div>`;
+      if (isPendingView) return `
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;">
+          <input type="checkbox" ${checked ? 'checked' : ''} onclick="toggleSelect(${v.id}, this.checked, event)" style="width:17px;height:17px;flex-shrink:0;accent-color:var(--text);cursor:pointer;">
+          ${cardHtml}
+        </div>`;
+      return `<div style="margin-bottom:7px;">${cardHtml}</div>`;
     }).join('');
 
-    document.getElementById('main-content').innerHTML = html;
+    document.getElementById('list-panel').innerHTML = html;
     if (isPendingView) updateBulkBar();
   }
 
   function pill(text) {
-    return `<span style="font-size:11px;color:var(--text2);padding:2px 8px;border-radius:100px;border:1px solid var(--border);background:var(--surface2);">${text}</span>`;
+    return `<span style="font-size:11px;color:var(--text2);padding:2px 7px;border-radius:100px;border:1px solid var(--border);background:var(--surface2);">${text}</span>`;
   }
-
   function statusBadge(status) {
-    const s = {
-      live:     `background:var(--green-bg);color:var(--green);border-color:var(--green-border)`,
-      pending:  `background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)`,
-      rejected: `background:var(--red-bg);color:var(--red);border-color:var(--red-border)`,
-    }[status] || `background:var(--surface2);color:var(--text2);border-color:var(--border)`;
-    return `<span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:100px;border:1px solid;${s}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
+    const s = { live: `background:var(--green-bg);color:var(--green);border-color:var(--green-border)`, pending: `background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)`, rejected: `background:var(--red-bg);color:var(--red);border-color:var(--red-border)` }[status] || `background:var(--surface2);color:var(--text2);border-color:var(--border)`;
+    return `<span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px;border:1px solid;${s}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
   }
 
   // ── Edit panel ────────────────────────────────────────────────
   async function openVenue(id) {
+    // Clear previous selected state
+    if (selectedVenue) clearSelectedMarker(selectedVenue.id);
+    document.querySelectorAll('.venue-card.selected').forEach(el => el.classList.remove('selected'));
+
     selectedVenue = venues.find(v => v.id === id);
     if (!selectedVenue) return;
+
+    // Smooth fly-to on map
+    if (selectedVenue.lat && selectedVenue.lng) flyTo(selectedVenue.lat, selectedVenue.lng);
+
+    // Highlight list card + selected marker
+    setSelectedMarker(id);
+    const card = document.getElementById(`vc-${id}`);
+    if (card) { card.classList.add('selected'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+
     communityPhotos = [];
     renderEditPanel();
     document.getElementById('edit-panel').style.transform = 'translateX(0)';
@@ -635,6 +954,8 @@
   }
 
   function closePanel() {
+    if (selectedVenue) clearSelectedMarker(selectedVenue.id);
+    document.querySelectorAll('.venue-card.selected').forEach(el => el.classList.remove('selected'));
     selectedVenue = null;
     document.getElementById('edit-panel').style.transform = 'translateX(100%)';
     document.getElementById('overlay').style.display = 'none';
@@ -643,138 +964,99 @@
   function renderEditPanel() {
     const v = selectedVenue;
     const vTags = Array.isArray(v.tags) ? v.tags : [];
-
     document.getElementById('edit-panel').innerHTML = `
-      <div style="padding:24px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-          <h2 style="font-weight:700;font-size:18px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:16px;">${h(v.name)}</h2>
-          <button onclick="closePanel()"
-            style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:15px;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"
-            onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">✕</button>
+      <div style="padding:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <h2 style="font-weight:800;font-size:17px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:12px;">${h(v.name)}</h2>
+          <button onclick="closePanel()" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:14px;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
         </div>
-
-        <div style="display:flex;flex-direction:column;gap:20px;">
-          <!-- Photos row -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-            ${photoSection('Cover Photo', 'cover', v.cover_photo_url)}
-            ${photoSection('Indoor Photo', 'indoor', v.indoor_photo_url)}
+        <div style="display:flex;flex-direction:column;gap:18px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            ${photoSection('Cover Photo','cover',v.cover_photo_url)}
+            ${photoSection('Indoor Photo','indoor',v.indoor_photo_url)}
           </div>
           <div style="border-top:1px solid var(--border);"></div>
-
-          <!-- 2-col field grid -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
             ${fld('Name',          `<input id="f-name" value="${a(v.name)}" class="input-field">`)}
             ${fld('Neighbourhood', `<input id="f-neighbourhood" value="${a(v.neighbourhood||'')}" class="input-field">`)}
             ${fld('City',          `<input id="f-city" value="${a(v.city||'')}" class="input-field">`)}
             ${fld('Address',       `<input id="f-address" value="${a(v.address||'')}" placeholder="e.g. 78 Moh Guan Terrace" class="input-field">`)}
-            ${fld('Seating type',  `
-              <select id="f-seating" class="input-field">
-                <option value="indoor"  ${v.seating_type==='indoor'  ?'selected':''}>Indoor</option>
-                <option value="outdoor" ${v.seating_type==='outdoor' ?'selected':''}>Outdoor</option>
-                <option value="both"    ${v.seating_type==='both'    ?'selected':''}>Indoor &amp; Outdoor</option>
-              </select>`)}
-            ${fld('Dog sizes', `
-              <select id="f-dog-sizes" class="input-field">
-                <option value="small"  ${v.dog_sizes_allowed==='small'  ?'selected':''}>Small only</option>
-                <option value="medium" ${v.dog_sizes_allowed==='medium' ?'selected':''}>Medium &amp; below</option>
-                <option value="large"  ${v.dog_sizes_allowed==='large'  ?'selected':''}>Large &amp; below</option>
-                <option value="all"    ${v.dog_sizes_allowed==='all'    ?'selected':''}>All sizes</option>
-              </select>`)}
-            ${fld('Status', `
-              <select id="f-status" class="input-field">
-                <option value="pending"  ${v.status==='pending'  ?'selected':''}>Pending</option>
-                <option value="live"     ${v.status==='live'     ?'selected':''}>Live</option>
-                <option value="rejected" ${v.status==='rejected' ?'selected':''}>Rejected</option>
-              </select>`)}
-            ${fld('Last verified date', `<input id="f-last-verified" type="date" value="${a(v.last_verified_date||'')}" class="input-field">`)}
+            ${fld('Seating type',  `<select id="f-seating" class="input-field"><option value="indoor" ${v.seating_type==='indoor'?'selected':''}>Indoor</option><option value="outdoor" ${v.seating_type==='outdoor'?'selected':''}>Outdoor</option><option value="both" ${v.seating_type==='both'?'selected':''}>Indoor &amp; Outdoor</option></select>`)}
+            ${fld('Dog sizes',     `<select id="f-dog-sizes" class="input-field"><option value="small" ${v.dog_sizes_allowed==='small'?'selected':''}>Small only</option><option value="medium" ${v.dog_sizes_allowed==='medium'?'selected':''}>Medium &amp; below</option><option value="large" ${v.dog_sizes_allowed==='large'?'selected':''}>Large &amp; below</option><option value="all" ${v.dog_sizes_allowed==='all'?'selected':''}>All sizes</option></select>`)}
+            ${fld('Status',        `<select id="f-status" class="input-field"><option value="pending" ${v.status==='pending'?'selected':''}>Pending</option><option value="live" ${v.status==='live'?'selected':''}>Live</option><option value="rejected" ${v.status==='rejected'?'selected':''}>Rejected</option></select>`)}
+            ${fld('Last verified', `<input id="f-last-verified" type="date" value="${a(v.last_verified_date||'')}" class="input-field">`)}
+            ${fld('Latitude',  `<input id="f-lat" value="${v.lat != null ? v.lat : ''}" placeholder="1.3521" class="input-field">`)}
+            ${fld('Longitude', `<input id="f-lng" value="${v.lng != null ? v.lng : ''}" placeholder="103.8198" class="input-field">`)}
           </div>
-
-          <!-- Toggles row -->
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
-            ${tog('Indoor verified', 'f-indoor-verified', v.indoor_verified)}
-            ${tog('Pet menu',        'f-pet-menu',        v.pet_menu)}
-            ${tog('Leash-free',      'f-leash-free',      v.leash_free)}
+          ${v.lat == null || v.lng == null ? `
+            <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+              <p style="font-size:12px;color:var(--orange);font-weight:600;">No map coordinates — pin won't appear on the map</p>
+              <button id="geocode-btn" onclick="geocodeVenueAddress()" style="flex-shrink:0;padding:6px 12px;border-radius:8px;background:var(--orange);color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">📍 Locate from address</button>
+            </div>` : `
+            <div style="text-align:right;">
+              <button id="geocode-btn" onclick="geocodeVenueAddress()" style="padding:4px 10px;border-radius:7px;background:none;color:var(--text3);border:1px solid var(--border2);font-size:11px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">📍 Re-locate from address</button>
+            </div>`}
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+            ${tog('Indoor verified','f-indoor-verified',v.indoor_verified)}
+            ${tog('Pet menu','f-pet-menu',v.pet_menu)}
+            ${tog('Leash-free','f-leash-free',v.leash_free)}
           </div>
-
-          ${fld('Google Place ID', `<input id="f-place-id" value="${a(v.google_place_id||'')}" placeholder="ChIJ…" class="input-field">`)}
-
+          ${fld('Google Place ID',`<input id="f-place-id" value="${a(v.google_place_id||'')}" placeholder="ChIJ…" class="input-field">`)}
           <div>
             <label class="field-label">Amenity Tags</label>
-            <div style="display:flex;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
               ${amenityTags.length === 0
-                ? '<p style="font-size:13px;color:var(--text2);">No tags yet — add some in Manage Tags.</p>'
-                : amenityTags.map(t => `
-                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);">
-                    <input type="checkbox" value="${a(t.name)}" ${vTags.includes(t.name)?'checked':''}
-                      class="tag-cb" style="width:14px;height:14px;accent-color:var(--text);cursor:pointer;">
-                    <span style="font-size:13px;color:var(--text);">${h(t.name)}</span>
-                  </label>`).join('')
-              }
+                ? '<p style="font-size:13px;color:var(--text2);">No tags yet.</p>'
+                : amenityTags.map(t => `<label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);"><input type="checkbox" value="${a(t.name)}" ${vTags.includes(t.name)?'checked':''} class="tag-cb" style="width:13px;height:13px;accent-color:var(--text);cursor:pointer;"><span style="font-size:12px;color:var(--text);">${h(t.name)}</span></label>`).join('')}
             </div>
           </div>
-
-          ${v.notes ? fld('Submission notes', `<p style="font-size:14px;color:var(--text2);font-style:italic;line-height:1.5;">"${h(v.notes)}"</p>`) : ''}
-
+          ${v.notes ? fld('Submission notes',`<p style="font-size:13px;color:var(--text2);font-style:italic;line-height:1.5;">"${h(v.notes)}"</p>`) : ''}
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
               <label class="field-label" style="margin:0;">Community Photos</label>
-              <button onclick="approveAllCommunityPhotos()" id="approve-all-btn"
-                style="display:none;padding:4px 12px;border-radius:6px;background:var(--green);border:none;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">
-                ✓ Approve all pending
-              </button>
+              <button onclick="approveAllCommunityPhotos()" id="approve-all-btn" style="display:none;padding:3px 10px;border-radius:6px;background:var(--green);border:none;color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">✓ Approve all pending</button>
             </div>
-            <div id="community-photos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,96px);gap:8px;max-height:260px;overflow-y:auto;padding:4px 2px;">
+            <div id="community-photos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,88px);gap:7px;max-height:240px;overflow-y:auto;padding:2px;">
               <span style="font-size:13px;color:var(--text3);">Loading…</span>
             </div>
           </div>
         </div>
-
-        <div style="margin-top:32px;display:flex;flex-direction:column;gap:10px;">
+        <div style="margin-top:28px;display:flex;flex-direction:column;gap:9px;">
           ${v.status === 'pending' ? `
             <div style="display:flex;gap:8px;">
               <button onclick="approveVenue()" class="btn-primary" style="flex:1;">Approve &amp; Publish</button>
               <button onclick="rejectVenue()" class="btn-danger">Reject</button>
             </div>
-            <button onclick="saveVenue()" class="btn-secondary">Save Changes</button>
-          ` : `
-            <button onclick="saveVenue()" class="btn-primary">Save Changes</button>
-          `}
-          <div style="border-top:1px solid var(--border);padding-top:10px;">
+            <button onclick="saveVenue()" class="btn-secondary">Save Changes</button>` : `
+            <button onclick="saveVenue()" class="btn-primary">Save Changes</button>`}
+          <div style="border-top:1px solid var(--border);padding-top:9px;">
             <button onclick="deleteVenue()" class="btn-danger" style="width:100%;">Delete Venue</button>
           </div>
         </div>
-        <p id="panel-msg" style="font-size:12px;text-align:center;margin-top:12px;display:none;"></p>
+        <p id="panel-msg" style="font-size:12px;text-align:center;margin-top:10px;display:none;"></p>
       </div>`;
   }
 
   function photoSection(label, slot, currentUrl) {
-    const inputId   = `photo-input-${slot}`;
-    const previewId = `photo-preview-${slot}`;
-    const progressId = `photo-progress-${slot}`;
-    const msgId     = `photo-msg-${slot}`;
-    return `
-      <div>
-        <label class="field-label">${label}</label>
-        <input type="file" id="${inputId}" accept="image/*" style="display:none;" onchange="handlePhotoSelect('${slot}', this)">
-        ${currentUrl
-          ? `<img id="${previewId}" src="${h(currentUrl)}" style="width:100%;height:130px;object-fit:cover;border-radius:10px;border:1px solid var(--border);display:block;margin-bottom:8px;">`
-          : `<div id="${previewId}" style="display:none;margin-bottom:8px;"><img src="" style="width:100%;height:130px;object-fit:cover;border-radius:10px;border:1px solid var(--border);display:block;" id="${previewId}-img"></div>`
-        }
-        <div class="photo-upload-area" onclick="document.getElementById('${inputId}').click()">
-          ${currentUrl ? '↑ Replace photo' : '+ Upload photo'}
-        </div>
-        <div id="${progressId}" style="display:none;" class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
-        <p id="${msgId}" style="font-size:12px;margin-top:6px;display:none;"></p>
-      </div>`;
+    const iid = `photo-input-${slot}`, pid = `photo-preview-${slot}`, prid = `photo-progress-${slot}`, mid = `photo-msg-${slot}`;
+    return `<div>
+      <label class="field-label">${label}</label>
+      <input type="file" id="${iid}" accept="image/*" style="display:none;" onchange="handlePhotoSelect('${slot}',this)">
+      ${currentUrl
+        ? `<img id="${pid}" src="${h(currentUrl)}" style="width:100%;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block;margin-bottom:7px;">`
+        : `<div id="${pid}" style="display:none;margin-bottom:7px;"><img src="" style="width:100%;height:110px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block;" id="${pid}-img"></div>`}
+      <div class="photo-upload-area" onclick="document.getElementById('${iid}').click()">${currentUrl ? '↑ Replace photo' : '+ Upload photo'}</div>
+      <div id="${prid}" style="display:none;" class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+      <p id="${mid}" style="font-size:12px;margin-top:5px;display:none;"></p>
+    </div>`;
   }
 
   async function handlePhotoSelect(slot, input) {
     const file = input.files[0];
     if (!file || !selectedVenue) return;
     const progressEl = document.getElementById(`photo-progress-${slot}`);
-    const msgEl      = document.getElementById(`photo-msg-${slot}`);
-    const fillEl     = progressEl?.querySelector('.progress-fill');
-    const previewEl  = document.getElementById(`photo-preview-${slot}`);
+    const msgEl = document.getElementById(`photo-msg-${slot}`);
+    const fillEl = progressEl?.querySelector('.progress-fill');
     if (progressEl) progressEl.style.display = 'block';
     if (fillEl) fillEl.style.width = '30%';
     if (msgEl) msgEl.style.display = 'none';
@@ -785,11 +1067,11 @@
       const { error } = await db.from('venues').update({ [field]: publicUrl }).eq('id', selectedVenue.id);
       if (error) throw error;
       patchVenue(selectedVenue.id, { [field]: publicUrl });
-      renderVenueList();
+      if (venueListMode) renderVenueList();
       renderEditPanel();
       if (progressEl) progressEl.style.display = 'none';
-      const newMsgEl = document.getElementById(`photo-msg-${slot}`);
-      if (newMsgEl) { newMsgEl.style.color = 'var(--green)'; newMsgEl.textContent = 'Photo saved ✓'; newMsgEl.style.display = 'block'; setTimeout(() => { if (newMsgEl) newMsgEl.style.display = 'none'; }, 3000); }
+      const newMsg = document.getElementById(`photo-msg-${slot}`);
+      if (newMsg) { newMsg.style.color = 'var(--green)'; newMsg.textContent = 'Photo saved ✓'; newMsg.style.display = 'block'; setTimeout(() => { if (newMsg) newMsg.style.display = 'none'; }, 3000); }
     } catch (err) {
       if (progressEl) progressEl.style.display = 'none';
       if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Upload failed: ' + (err.message || err); msgEl.style.display = 'block'; }
@@ -798,7 +1080,7 @@
   }
 
   async function uploadPhoto(venueId, slot, file) {
-    const ext  = file.name.split('.').pop() || 'jpg';
+    const ext = file.name.split('.').pop() || 'jpg';
     const path = `${venueId}/${slot}_${Date.now()}.${ext}`;
     const { error } = await db.storage.from(STORAGE_BUCKET).upload(path, file);
     if (error) throw error;
@@ -806,15 +1088,100 @@
     return data.publicUrl;
   }
 
-  function fld(label, input) {
-    return `<div><label class="field-label">${label}</label>${input}</div>`;
-  }
-
+  function fld(label, input) { return `<div><label class="field-label">${label}</label>${input}</div>`; }
   function tog(label, id, checked) {
     return `<div style="display:flex;align-items:center;justify-content:space-between;">
       <label class="field-label" style="margin:0;">${label}</label>
       <label class="toggle"><input type="checkbox" id="${id}" ${checked?'checked':''}><span class="toggle-slider"></span></label>
     </div>`;
+  }
+
+  // ── Geocoding ─────────────────────────────────────────────────
+  let mapClickListener = null;
+
+  function applyCoords(lat, lng) {
+    const latEl = document.getElementById('f-lat'), lngEl = document.getElementById('f-lng');
+    if (latEl) latEl.value = lat.toFixed(6);
+    if (lngEl) lngEl.value = lng.toFixed(6);
+    if (map) { map.setCenter({ lat, lng }); map.setZoom(17); }
+    const banner = document.querySelector('#edit-panel [style*="orange-bg"]');
+    if (banner) banner.style.display = 'none';
+    showToast('📍 Location set — click Save Changes to apply');
+  }
+
+  function enableMapClickToPin() {
+    if (!map) return;
+    // Cancel any previous listener
+    if (mapClickListener) { google.maps.event.removeListener(mapClickListener); mapClickListener = null; }
+    showToast('Click anywhere on the map to drop the pin');
+    map.setOptions({ draggableCursor: 'crosshair' });
+    mapClickListener = map.addListener('click', (e) => {
+      google.maps.event.removeListener(mapClickListener);
+      mapClickListener = null;
+      map.setOptions({ draggableCursor: null });
+      applyCoords(e.latLng.lat(), e.latLng.lng());
+    });
+  }
+
+  function geocodeVenueAddress() {
+    const rawAddress    = document.getElementById('f-address')?.value?.trim();
+    const city          = document.getElementById('f-city')?.value?.trim() || 'Singapore';
+    const neighbourhood = document.getElementById('f-neighbourhood')?.value?.trim() || '';
+    const venueName     = document.getElementById('f-name')?.value?.trim() || '';
+
+    if (!rawAddress && !venueName) { enableMapClickToPin(); return; }
+
+    // Strip Singapore unit numbers (#01-K22, #B2-10, etc.) — they confuse the geocoder
+    const cleanAddress = rawAddress
+      ? rawAddress.replace(/#\s*[A-Z0-9]+[-–][A-Z0-9]+/gi, '').replace(/,\s*,/g, ',').trim().replace(/,\s*$/, '')
+      : '';
+
+    // Extract 6-digit Singapore postal code — most reliable geocoding signal
+    const postalMatch = rawAddress ? rawAddress.match(/\b(\d{6})\b/) : null;
+    const postalCode  = postalMatch ? postalMatch[1] : null;
+
+    const btn = document.getElementById('geocode-btn');
+    if (btn) { btn.textContent = 'Locating…'; btn.disabled = true; }
+
+    const geocoder = new google.maps.Geocoder();
+    const SG_BOUNDS = new google.maps.LatLngBounds(
+      { lat: 1.1304, lng: 103.6020 },
+      { lat: 1.4784, lng: 104.0945 }
+    );
+
+    const queries = [];
+    if (postalCode)   queries.push(`Singapore ${postalCode}`);
+    if (cleanAddress) queries.push(`${cleanAddress}, ${city}`);
+    if (cleanAddress && neighbourhood) queries.push(`${cleanAddress}, ${neighbourhood}, ${city}`);
+    if (venueName)    queries.push(`${venueName}, ${neighbourhood || city}, ${city}`);
+
+    function tryNext(i) {
+      if (i >= queries.length) {
+        if (btn) { btn.textContent = '📍 Re-locate from address'; btn.disabled = false; }
+        // Offer click-to-pin as reliable fallback
+        if (confirm('Geocoding failed — the address could not be found automatically.\n\nClick OK to drop a pin manually on the map instead.')) {
+          enableMapClickToPin();
+        }
+        return;
+      }
+      console.log('[Geocode] trying:', queries[i]);
+      geocoder.geocode({ address: queries[i], bounds: SG_BOUNDS, region: 'SG' }, (results, status) => {
+        console.log('[Geocode] status:', status, 'for query:', queries[i]);
+        if (status === 'OK' && results[0]) {
+          if (btn) { btn.textContent = '📍 Re-locate from address'; btn.disabled = false; }
+          applyCoords(results[0].geometry.location.lat(), results[0].geometry.location.lng());
+        } else if (status === 'REQUEST_DENIED') {
+          if (btn) { btn.textContent = '📍 Re-locate from address'; btn.disabled = false; }
+          if (confirm('Geocoding API is not enabled for this key (REQUEST_DENIED).\n\nClick OK to drop a pin manually on the map instead.')) {
+            enableMapClickToPin();
+          }
+        } else {
+          tryNext(i + 1);
+        }
+      });
+    }
+
+    tryNext(0);
   }
 
   // ── Venue actions ─────────────────────────────────────────────
@@ -832,6 +1199,8 @@
       pet_menu:           document.getElementById('f-pet-menu').checked,
       leash_free:         document.getElementById('f-leash-free').checked,
       google_place_id:    document.getElementById('f-place-id').value.trim() || null,
+      lat:                parseFloat(document.getElementById('f-lat')?.value) || null,
+      lng:                parseFloat(document.getElementById('f-lng')?.value) || null,
       tags:               [...document.querySelectorAll('.tag-cb:checked')].map(cb => cb.value),
     };
   }
@@ -846,8 +1215,11 @@
       return;
     }
     patchVenue(selectedVenue.id, updates);
-    renderStats(); renderSidebar(); renderVenueList();
+    renderStatsCard(); renderSidebar();
+    if (venueListMode) renderVenueList();
+    loadVenueMarkers();
     if (btn) { btn.textContent = 'Saved ✓'; btn.style.background = 'var(--green)'; btn.style.color = '#fff'; setTimeout(() => { btn.textContent = 'Save Changes'; btn.style.background = ''; btn.style.color = ''; btn.disabled = false; }, 2000); }
+    showToast('✓ Changes saved');
   }
 
   async function approveVenue() {
@@ -855,16 +1227,22 @@
     const { error } = await db.from('venues').update(updates).eq('id', selectedVenue.id);
     if (error) { panelMsg('Error: ' + error.message, true); return; }
     patchVenue(selectedVenue.id, updates);
-    renderStats(); renderSidebar(); renderVenueList();
+    renderStatsCard(); renderSidebar();
+    if (venueListMode) renderVenueList();
+    loadVenueMarkers();
     closePanel();
+    showToast('✓ Published successfully');
   }
 
   async function rejectVenue() {
     const { error } = await db.from('venues').update({ status: 'rejected' }).eq('id', selectedVenue.id);
     if (error) { panelMsg('Error: ' + error.message, true); return; }
     patchVenue(selectedVenue.id, { status: 'rejected' });
-    renderStats(); renderSidebar(); renderVenueList();
+    renderStatsCard(); renderSidebar();
+    if (venueListMode) renderVenueList();
+    loadVenueMarkers();
     closePanel();
+    showToast('Venue rejected');
   }
 
   function renderCommunityPhotos() {
@@ -873,28 +1251,15 @@
     const approveAllBtn = document.getElementById('approve-all-btn');
     const pendingCount = communityPhotos.filter(p => !p.is_visible).length;
     if (approveAllBtn) approveAllBtn.style.display = pendingCount > 1 ? 'block' : 'none';
-    if (communityPhotos.length === 0) {
-      grid.innerHTML = '<span style="font-size:13px;color:var(--text3);">No community photos yet.</span>';
-      return;
-    }
+    if (communityPhotos.length === 0) { grid.innerHTML = '<span style="font-size:13px;color:var(--text3);">No community photos yet.</span>'; return; }
     grid.innerHTML = communityPhotos.map(p => {
       const pending = !p.is_visible;
       const outline = pending ? 'outline:2.5px solid var(--orange);outline-offset:-2px;' : '';
-      const approveBtn = pending ? `
-        <button onclick="approveCommunityPhoto(${p.id})" title="Approve — make visible in app"
-          style="position:absolute;bottom:5px;right:5px;height:22px;padding:0 8px;border-radius:6px;background:var(--green);border:2px solid rgba(255,255,255,0.85);color:#fff;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;">
-          ✓ Approve
-        </button>` : '';
-      const pendingBadge = pending ? `
-        <span style="position:absolute;top:5px;left:5px;padding:2px 7px;border-radius:6px;background:var(--orange);color:#fff;font-size:9px;font-weight:700;letter-spacing:0.04em;">PENDING</span>` : '';
-      return `
-      <div style="position:relative;width:96px;height:96px;border-radius:8px;overflow:hidden;flex-shrink:0;${outline}">
-        <img src="${h(p.photo_url)}" onclick="openPhotoLightbox('${a(p.photo_url)}')"
-          style="width:100%;height:100%;object-fit:cover;cursor:pointer;">
-        ${pendingBadge}
-        <button onclick="removeCommunityPhoto(${p.id})" title="Remove photo"
-          style="position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.65);border:1.5px solid rgba(255,255,255,0.5);color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
-        ${approveBtn}
+      return `<div style="position:relative;width:88px;height:88px;border-radius:8px;overflow:hidden;flex-shrink:0;${outline}">
+        <img src="${h(p.photo_url)}" onclick="openPhotoLightbox('${a(p.photo_url)}')" style="width:100%;height:100%;object-fit:cover;cursor:pointer;">
+        ${pending ? `<span style="position:absolute;top:4px;left:4px;padding:1px 5px;border-radius:5px;background:var(--orange);color:#fff;font-size:9px;font-weight:700;">PENDING</span>` : ''}
+        ${pending ? `<button onclick="approveCommunityPhoto(${p.id})" style="position:absolute;bottom:4px;right:4px;height:20px;padding:0 6px;border-radius:5px;background:var(--green);border:1.5px solid rgba(255,255,255,0.8);color:#fff;font-size:9px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Urbanist',sans-serif;">✓</button>` : ''}
+        <button onclick="removeCommunityPhoto(${p.id})" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.65);border:1.5px solid rgba(255,255,255,0.5);color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
       </div>`;
     }).join('');
   }
@@ -902,55 +1267,46 @@
   async function approveCommunityPhoto(id) {
     const { error } = await db.from('community_photos').update({ is_visible: true }).eq('id', id);
     if (error) { alert('Error: ' + error.message); return; }
-    const photo = communityPhotos.find(p => p.id === id);
-    if (photo) photo.is_visible = true;
+    const p = communityPhotos.find(p => p.id === id); if (p) p.is_visible = true;
     pendingPhotos = pendingPhotos.filter(p => p.id !== id);
-    renderPendingPhotosBadge();
-    renderCommunityPhotos();
+    renderPendingPhotosBadge(); renderCommunityPhotos();
   }
-
   async function approveAllCommunityPhotos() {
-    const pendingIds = communityPhotos.filter(p => !p.is_visible).map(p => p.id);
-    if (pendingIds.length === 0) return;
-    if (!confirm(`Approve ${pendingIds.length} pending photo(s)? They will become visible in the app.`)) return;
-    const { error } = await db.from('community_photos').update({ is_visible: true }).in('id', pendingIds);
+    const ids = communityPhotos.filter(p => !p.is_visible).map(p => p.id);
+    if (!ids.length || !confirm(`Approve ${ids.length} pending photo(s)?`)) return;
+    const { error } = await db.from('community_photos').update({ is_visible: true }).in('id', ids);
     if (error) { alert('Error: ' + error.message); return; }
     communityPhotos.forEach(p => { p.is_visible = true; });
-    pendingPhotos = pendingPhotos.filter(p => !pendingIds.includes(p.id));
-    renderPendingPhotosBadge();
-    renderCommunityPhotos();
+    pendingPhotos = pendingPhotos.filter(p => !ids.includes(p.id));
+    renderPendingPhotosBadge(); renderCommunityPhotos();
   }
-
-  function openPhotoLightbox(url) {
-    const existing = document.getElementById('photo-lightbox');
-    if (existing) existing.remove();
-    const box = document.createElement('div');
-    box.id = 'photo-lightbox';
-    box.onclick = () => box.remove();
-    box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
-    box.innerHTML = `
-      <img src="${a(url)}" style="max-width:90vw;max-height:90vh;border-radius:12px;object-fit:contain;pointer-events:none;">
-      <button onclick="document.getElementById('photo-lightbox').remove()"
-        style="position:absolute;top:20px;right:20px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>`;
-    document.body.appendChild(box);
-  }
-
   async function removeCommunityPhoto(id) {
     if (!confirm('Remove this photo?')) return;
     const { error } = await db.from('community_photos').delete().eq('id', id);
     if (error) { alert('Error: ' + error.message); return; }
-    communityPhotos = communityPhotos.filter(p => p.id !== id);
-    renderCommunityPhotos();
+    communityPhotos = communityPhotos.filter(p => p.id !== id); renderCommunityPhotos();
+  }
+
+  function openPhotoLightbox(url) {
+    const existing = document.getElementById('photo-lightbox'); if (existing) existing.remove();
+    const box = document.createElement('div');
+    box.id = 'photo-lightbox'; box.onclick = () => box.remove();
+    box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+    box.innerHTML = `<img src="${a(url)}" style="max-width:90vw;max-height:90vh;border-radius:12px;object-fit:contain;pointer-events:none;">
+      <button onclick="document.getElementById('photo-lightbox').remove()" style="position:absolute;top:20px;right:20px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>`;
+    document.body.appendChild(box);
   }
 
   async function deleteVenue() {
-    if (!confirm(`Permanently delete "${selectedVenue.name}"? This cannot be undone.`)) return;
+    if (!confirm(`Permanently delete "${selectedVenue.name}"?`)) return;
     const { error, count } = await db.from('venues').delete({ count: 'exact' }).eq('id', selectedVenue.id);
     if (error) { panelMsg('Error: ' + error.message, true); return; }
-    if (count === 0) { panelMsg('Delete blocked — check Supabase RLS policies.', true); return; }
+    if (count === 0) { panelMsg('Delete blocked — check RLS policies.', true); return; }
     venues = venues.filter(v => v.id !== selectedVenue.id);
-    renderStats(); renderSidebar(); renderVenueList();
-    closePanel();
+    renderStatsCard(); renderSidebar();
+    if (venueListMode) renderVenueList();
+    loadVenueMarkers(); closePanel();
+    showToast('Venue deleted');
   }
 
   function patchVenue(id, updates) {
@@ -958,51 +1314,35 @@
     if (idx !== -1) venues[idx] = { ...venues[idx], ...updates };
     if (selectedVenue?.id === id) Object.assign(selectedVenue, updates);
   }
-
   function panelMsg(msg, isError = false) {
-    const el = document.getElementById('panel-msg');
-    if (!el) return;
-    el.textContent = msg;
-    el.style.color = isError ? 'var(--red)' : 'var(--green)';
-    el.style.display = 'block';
+    const el = document.getElementById('panel-msg'); if (!el) return;
+    el.textContent = msg; el.style.color = isError ? 'var(--red)' : 'var(--green)'; el.style.display = 'block';
     setTimeout(() => { if (el) el.style.display = 'none'; }, 3000);
   }
 
   // ── Bulk selection ────────────────────────────────────────────
   function toggleSelect(id, checked, event) {
     event.stopPropagation();
-    if (checked) selectedIds.add(id);
-    else selectedIds.delete(id);
+    if (checked) selectedIds.add(id); else selectedIds.delete(id);
     updateBulkBar();
   }
-
   function toggleSelectAll(checked) {
-    const pendingVenues = venues.filter(v => v.status === 'pending');
-    if (checked) pendingVenues.forEach(v => selectedIds.add(v.id));
-    else selectedIds.clear();
+    const pv = venues.filter(v => v.status === 'pending');
+    if (checked) pv.forEach(v => selectedIds.add(v.id)); else selectedIds.clear();
     renderVenueList();
   }
-
   function updateBulkBar() {
-    const countEl      = document.getElementById('selected-count');
-    const btn          = document.getElementById('bulk-approve-btn');
-    const selectAllCb  = document.getElementById('select-all-cb');
-    const pendingCount = venues.filter(v => v.status === 'pending').length;
-    const n = selectedIds.size;
+    const countEl = document.getElementById('selected-count');
+    const btn = document.getElementById('bulk-approve-btn');
+    const cb  = document.getElementById('select-all-cb');
+    const pc  = venues.filter(v => v.status === 'pending').length;
+    const n   = selectedIds.size;
     if (countEl) countEl.textContent = n === 0 ? '0 selected' : `${n} selected`;
-    if (btn) {
-      btn.disabled = n === 0;
-      btn.style.opacity  = n > 0 ? '1' : '0.4';
-      btn.style.cursor   = n > 0 ? 'pointer' : 'not-allowed';
-    }
-    if (selectAllCb) {
-      selectAllCb.checked       = n === pendingCount && pendingCount > 0;
-      selectAllCb.indeterminate = n > 0 && n < pendingCount;
-    }
+    if (btn) { btn.disabled = n === 0; btn.style.opacity = n > 0 ? '1' : '0.4'; btn.style.cursor = n > 0 ? 'pointer' : 'not-allowed'; }
+    if (cb) { cb.checked = n === pc && pc > 0; cb.indeterminate = n > 0 && n < pc; }
   }
-
   async function bulkApproveSelected() {
-    if (selectedIds.size === 0) return;
+    if (!selectedIds.size) return;
     const ids = [...selectedIds];
     const btn = document.getElementById('bulk-approve-btn');
     if (btn) { btn.disabled = true; btn.textContent = `Publishing ${ids.length}…`; btn.style.opacity = '0.7'; }
@@ -1010,64 +1350,48 @@
     const { error } = await db.from('venues').update(updates).in('id', ids);
     if (error) {
       if (btn) { btn.disabled = false; btn.textContent = 'Publish Selected'; btn.style.opacity = '1'; btn.style.background = 'var(--red)'; setTimeout(() => { if (btn) { btn.style.background = 'var(--green)'; btn.textContent = 'Publish Selected'; } }, 3000); }
-      alert('Bulk publish failed: ' + error.message);
-      return;
+      alert('Bulk publish failed: ' + error.message); return;
     }
     ids.forEach(id => patchVenue(id, updates));
     selectedIds.clear();
-    renderStats(); renderSidebar(); renderVenueList();
+    renderStatsCard(); renderSidebar(); renderVenueList(); loadVenueMarkers();
+    showToast(`✓ ${ids.length} venues published`);
   }
 
-  // ── Tags manager ──────────────────────────────────────────────
-  function showTagsView() {
-    currentView = 'tags';
-    closePanel();
-    renderSidebar();
-    renderTagsView();
-  }
-
+  // ── Tags ──────────────────────────────────────────────────────
+  function showTagsView() { currentView = 'tags'; venueListMode = false; closePanel(); showContentView(); renderSidebar(); renderTagsView(); }
   function renderTagsView() {
-    document.getElementById('main-content').innerHTML = `
+    document.getElementById('content-container').innerHTML = `
       <div>
-        <div style="margin-bottom:24px;">
-          <h2 style="font-weight:700;font-size:20px;color:var(--text);margin-bottom:4px;">Amenity Tags</h2>
+        <div style="margin-bottom:20px;">
+          <h2 style="font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px;">Amenity Tags</h2>
           <p style="font-size:14px;color:var(--text2);">Create a tag once, then assign it to any venue.</p>
         </div>
-        <div style="display:flex;gap:8px;margin-bottom:24px;">
-          <input id="new-tag-input" type="text" placeholder="e.g. Water Bowl Available"
-            class="input-field" style="flex:1;" onkeydown="if(event.key==='Enter') addTag()">
-          <button onclick="addTag()" class="btn-primary" style="width:auto;padding:10px 20px;white-space:nowrap;">Add Tag</button>
+        <div style="display:flex;gap:8px;margin-bottom:20px;">
+          <input id="new-tag-input" type="text" placeholder="e.g. Water Bowl Available" class="input-field" style="flex:1;" onkeydown="if(event.key==='Enter') addTag()">
+          <button onclick="addTag()" class="btn-primary" style="width:auto;padding:10px 18px;white-space:nowrap;">Add Tag</button>
         </div>
         <div id="tag-list">${renderTagItems()}</div>
       </div>`;
   }
-
   function renderTagItems() {
-    if (amenityTags.length === 0) return '<p style="font-size:14px;color:var(--text2);">No tags yet. Add your first one above.</p>';
+    if (!amenityTags.length) return '<p style="font-size:14px;color:var(--text2);">No tags yet.</p>';
     return amenityTags.map(t => `
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:8px;">
-        <span style="font-size:14px;font-weight:500;color:var(--text);">${h(t.name)}</span>
-        <button onclick="deleteTag(${t.id}, '${a(t.name)}')"
-          style="font-size:13px;color:var(--text2);background:none;border:none;cursor:pointer;font-weight:500;padding:4px 8px;border-radius:6px;"
-          onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text2)'">Remove</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 14px;margin-bottom:7px;">
+        <span style="font-size:14px;font-weight:600;color:var(--text);">${h(t.name)}</span>
+        <button onclick="deleteTag(${t.id},'${a(t.name)}')" style="font-size:13px;color:var(--text2);background:none;border:none;cursor:pointer;font-weight:500;padding:3px 7px;border-radius:6px;font-family:'Urbanist',sans-serif;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text2)'">Remove</button>
       </div>`).join('');
   }
-
   async function addTag() {
     const input = document.getElementById('new-tag-input');
-    const name = input.value.trim();
-    if (!name) return;
-    const btn = input.nextElementSibling;
-    btn.disabled = true; btn.textContent = 'Adding…';
+    const name = input.value.trim(); if (!name) return;
+    const btn = input.nextElementSibling; btn.disabled = true; btn.textContent = 'Adding…';
     const { data, error } = await db.from('amenity_tags').insert({ name }).select().single();
     btn.disabled = false; btn.textContent = 'Add Tag';
     if (error) { alert('Error: ' + error.message); return; }
-    amenityTags.push(data);
-    amenityTags.sort((a, b) => a.name.localeCompare(b.name));
-    input.value = '';
-    document.getElementById('tag-list').innerHTML = renderTagItems();
+    amenityTags.push(data); amenityTags.sort((a, b) => a.name.localeCompare(b.name));
+    input.value = ''; document.getElementById('tag-list').innerHTML = renderTagItems();
   }
-
   async function deleteTag(id, name) {
     if (!confirm(`Remove "${name}"?`)) return;
     const { error } = await db.from('amenity_tags').delete().eq('id', id);
@@ -1077,254 +1401,143 @@
   }
 
   // ── Reports ───────────────────────────────────────────────────
-  function showReportsView() {
-    currentView = 'reports';
-    closePanel();
-    renderSidebar();
-    renderReportsView();
-  }
-
+  function showReportsView() { currentView = 'reports'; venueListMode = false; closePanel(); showContentView(); renderSidebar(); renderReportsView(); }
   function renderReportsView() {
     const unresolved = reports.filter(r => !r.resolved);
     const resolved   = reports.filter(r =>  r.resolved);
-    document.getElementById('main-content').innerHTML = `
+    document.getElementById('content-container').innerHTML = `
       <div>
-        <div style="margin-bottom:24px;">
-          <h2 style="font-weight:700;font-size:20px;color:var(--text);margin-bottom:4px;">Reported Changes</h2>
+        <div style="margin-bottom:20px;">
+          <h2 style="font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px;">Reported Changes</h2>
           <p style="font-size:14px;color:var(--text2);">Issues flagged by users from the app.</p>
         </div>
-        ${reports.length === 0
-          ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:12px;color:var(--text3);">
-               <span style="font-size:40px;">✅</span>
-               <span style="font-size:14px;">No reports yet</span>
-             </div>`
+        ${!reports.length
+          ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:12px;color:var(--text3);"><span style="font-size:36px;">✅</span><span style="font-size:14px;">No reports yet</span></div>`
           : `${unresolved.map(r => reportCard(r)).join('')}
-             ${resolved.length > 0 ? `
-               <p style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 12px;">Resolved</p>
-               ${resolved.map(r => reportCard(r)).join('')}` : ''}`
-        }
+             ${resolved.length ? `<p style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin:18px 0 10px;">Resolved</p>${resolved.map(r => reportCard(r)).join('')}` : ''}`}
       </div>`;
   }
-
   function reportCard(r) {
-    const date = new Date(r.created_at).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+    const date = new Date(r.created_at).toLocaleDateString('en-SG', { day:'numeric', month:'short', year:'numeric' });
     return `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:8px;${r.resolved ? 'opacity:0.45;' : ''}">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:7px;${r.resolved ? 'opacity:0.45;' : ''}">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
           <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
-              <span style="font-size:14px;font-weight:600;color:var(--text);">${h(r.venue_name)}</span>
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;flex-wrap:wrap;">
+              <span style="font-size:14px;font-weight:700;color:var(--text);">${h(r.venue_name)}</span>
               ${r.resolved
-                ? `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);">Resolved</span>`
-                : `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);">Open</span>`}
+                ? `<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:100px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);">Resolved</span>`
+                : `<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:100px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);">Open</span>`}
             </div>
-            <p style="font-size:14px;color:var(--text);font-weight:500;margin-bottom:${r.note ? '4px' : '0'};">${h(r.reason)}</p>
-            ${r.note ? `<p style="font-size:13px;color:var(--text2);font-style:italic;">"${h(r.note)}"</p>` : ''}
-            <p style="font-size:12px;color:var(--text3);margin-top:6px;">${date}</p>
+            <p style="font-size:13px;color:var(--text);font-weight:500;margin-bottom:${r.note ? '3px' : '0'};">${h(r.reason)}</p>
+            ${r.note ? `<p style="font-size:12px;color:var(--text2);font-style:italic;">"${h(r.note)}"</p>` : ''}
+            <p style="font-size:11px;color:var(--text3);margin-top:5px;">${date}</p>
           </div>
-          ${!r.resolved ? `
-            <button onclick="resolveReport(${r.id})"
-              style="padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;"
-              onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">
-              Mark Resolved
-            </button>` : ''}
+          ${!r.resolved ? `<button onclick="resolveReport(${r.id})" style="padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:'Urbanist',sans-serif;" onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='var(--surface2)'">Mark Resolved</button>` : ''}
         </div>
       </div>`;
   }
-
   async function resolveReport(id) {
     const { error } = await db.from('change_reports').update({ resolved: true }).eq('id', id);
     if (error) { alert('Error: ' + error.message); return; }
-    const idx = reports.findIndex(r => r.id === id);
-    if (idx !== -1) reports[idx].resolved = true;
-    renderSidebar();
-    renderReportsView();
+    const idx = reports.findIndex(r => r.id === id); if (idx !== -1) reports[idx].resolved = true;
+    renderSidebar(); renderReportsView();
   }
 
   // ── CSV Import ────────────────────────────────────────────────
-  function openCsvModal() {
-    csvRows = [];
-    document.getElementById('csv-preview').style.display = 'none';
-    document.getElementById('csv-file-input').value = '';
-    document.getElementById('csv-modal').classList.add('open');
-  }
-
-  function closeCsvModal() {
-    document.getElementById('csv-modal').classList.remove('open');
-  }
-
+  function openCsvModal() { csvRows = []; document.getElementById('csv-preview').style.display = 'none'; document.getElementById('csv-file-input').value = ''; document.getElementById('csv-modal').classList.add('open'); }
+  function closeCsvModal() { document.getElementById('csv-modal').classList.remove('open'); }
   function downloadTemplate() {
-    const header = CSV_COLUMNS.join(',');
-    const example = [
-      'Kopi & Kaya', 'Singapore', 'Tiong Bahru', '1.2840', '103.8320',
-      'indoor', 'false', 'all', 'true', 'pending', 'false', '', '', ''
-    ].join(',');
-    const csv = header + '\n' + example;
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'pawmap-venues-template.csv'; a.click();
+    const exampleRow = ['"Kopi & Kaya"','"Singapore"','"Tiong Bahru"','"78 Moh Guan Terrace #01-20"','"indoor"','"all"','"false"','"false"','""','""'];
+    const csv = CSV_COLUMNS.join(',') + '\n' + exampleRow.join(',');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const el = document.createElement('a'); el.href = url; el.download = 'pawmap-venues-template.csv'; el.click();
     URL.revokeObjectURL(url);
   }
-
   function handleCsvFile(input) {
-    const file = input.files[0];
-    if (!file) return;
+    const file = input.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
-      const rows = parseCSV(e.target.result);
-      if (rows.length === 0) { alert('No rows found in CSV.'); return; }
-      csvRows = rows.map(csvRowToVenue);
-      showCsvPreview();
-    };
+    reader.onload = e => { const rows = parseCSV(e.target.result); if (!rows.length) { alert('No rows found.'); return; } csvRows = rows.map(csvRowToVenue); showCsvPreview(); };
     reader.readAsText(file);
   }
-
   function parseCSV(text) {
-    const lines = text.trim().split(/\r?\n/);
-    if (lines.length < 2) return [];
+    const lines = text.trim().split(/\r?\n/); if (lines.length < 2) return [];
     const headers = splitCSVLine(lines[0]);
-    return lines.slice(1).filter(l => l.trim()).map(line => {
-      const vals = splitCSVLine(line);
-      const obj = {};
-      headers.forEach((h, i) => { obj[h.trim()] = (vals[i] ?? '').trim(); });
-      return obj;
-    });
+    return lines.slice(1).filter(l => l.trim()).map(line => { const vals = splitCSVLine(line); const obj = {}; headers.forEach((hd, i) => { obj[hd.trim()] = (vals[i] ?? '').trim(); }); return obj; });
   }
-
   function splitCSVLine(line) {
-    const vals = []; let cur = ''; let inQ = false;
-    for (const ch of line) {
-      if (ch === '"') inQ = !inQ;
-      else if (ch === ',' && !inQ) { vals.push(cur); cur = ''; }
-      else cur += ch;
-    }
-    vals.push(cur);
-    return vals;
+    const vals = []; let cur = '', inQ = false;
+    for (const ch of line) { if (ch === '"') inQ = !inQ; else if (ch === ',' && !inQ) { vals.push(cur); cur = ''; } else cur += ch; }
+    vals.push(cur); return vals;
   }
-
   function csvRowToVenue(row) {
-    const lat = parseFloat(row.lat);
-    const lng = parseFloat(row.lng);
     return {
-      name:               (row.name || '').slice(0, 100),
-      city:               row.city || 'Singapore',
-      neighbourhood:      (row.neighbourhood || '').slice(0, 60),
-      lat:                (isFinite(lat) && lat >= -90  && lat <= 90)  ? lat : null,
-      lng:                (isFinite(lng) && lng >= -180 && lng <= 180) ? lng : null,
-      seating_type:       ['indoor','outdoor','both'].includes(row.seating_type) ? row.seating_type : 'indoor',
-      pet_menu:           row.pet_menu === 'true' || row.pet_menu === '1',
-      dog_sizes_allowed:  ['small','medium','large','all'].includes(row.dog_sizes_allowed) ? row.dog_sizes_allowed : 'all',
-      is_active:          row.is_active !== 'false',
-      status:             ['live','pending','rejected'].includes(row.status) ? row.status : 'pending',
-      indoor_verified:    row.indoor_verified === 'true' || row.indoor_verified === '1',
-      last_verified_date: row.last_verified_date || null,
-      google_place_id:    row.google_place_id || null,
-      notes:              row.notes ? row.notes.slice(0, 500) : null,
-      tags:               [],
+      name:              (row.name || '').slice(0, 100),
+      city:              (row.city || 'Singapore').trim(),
+      neighbourhood:     (row.neighbourhood || '').slice(0, 60),
+      address:           row.address ? row.address.slice(0, 200) : null,
+      seating_type:      ['indoor','outdoor','both'].includes(row.seating_type) ? row.seating_type : 'indoor',
+      dog_sizes_allowed: ['small','medium','large','all'].includes(row.dog_sizes_allowed) ? row.dog_sizes_allowed : 'all',
+      pet_menu:          row.pet_menu === 'true' || row.pet_menu === '1',
+      leash_free:        row.leash_free === 'true' || row.leash_free === '1' ? true : row.leash_free === 'false' ? false : null,
+      google_place_id:   row.google_place_id || null,
+      notes:             row.notes ? row.notes.slice(0, 500) : null,
+      status:          'pending',
+      is_active:       true,
+      indoor_verified: false,
     };
   }
-
   function showCsvPreview() {
-    const preview = document.getElementById('csv-preview');
-    const label   = document.getElementById('csv-preview-label');
-    const table   = document.getElementById('csv-preview-table');
-    const btn     = document.getElementById('csv-import-btn');
-
-    const errors = csvRows.filter(r => !r.name || r.lat === null || r.lng === null);
-    label.textContent = `${csvRows.length} venue${csvRows.length !== 1 ? 's' : ''} found${errors.length ? ` — ${errors.length} with missing or invalid fields` : ''}`;
+    const errors = csvRows.filter(r => !r.name);
+    const label = document.getElementById('csv-preview-label');
+    label.textContent = `${csvRows.length} venue${csvRows.length!==1?'s':''} found${errors.length?` — ${errors.length} missing name`:''}`;
     label.style.color = errors.length ? 'var(--orange)' : 'var(--text2)';
-
     const show = csvRows.slice(0, 5);
-    table.innerHTML = `
-      <thead><tr>
-        <th>Name</th><th>Neighbourhood</th><th>Seating</th><th>Status</th>
-      </tr></thead>
-      <tbody>${show.map(r => `<tr>
-        <td>${h(r.name || '—')}</td>
-        <td>${h(r.neighbourhood || '—')}</td>
-        <td>${h(r.seating_type)}</td>
-        <td>${h(r.status)}</td>
-      </tr>`).join('')}
-      ${csvRows.length > 5 ? `<tr><td colspan="4" style="color:var(--text2);font-style:italic;">…and ${csvRows.length - 5} more</td></tr>` : ''}
-      </tbody>`;
-
-    const valid = csvRows.filter(r => r.name && r.lat && r.lng);
-    btn.textContent = `Import ${valid.length} venue${valid.length !== 1 ? 's' : ''}`;
-    btn.disabled = valid.length === 0;
-    preview.style.display = 'block';
+    document.getElementById('csv-preview-table').innerHTML =
+      `<thead><tr><th>Name</th><th>Neighbourhood</th><th>Address</th><th>Seating</th><th>Dog Sizes</th></tr></thead>` +
+      `<tbody>${show.map(r => `<tr><td>${h(r.name||'—')}</td><td>${h(r.neighbourhood||'—')}</td><td>${h(r.address||'—')}</td><td>${h(r.seating_type)}</td><td>${h(r.dog_sizes_allowed)}</td></tr>`).join('')}` +
+      `${csvRows.length>5?`<tr><td colspan="5" style="color:var(--text2);font-style:italic;">…and ${csvRows.length-5} more</td></tr>`:''}</tbody>`;
+    const valid = csvRows.filter(r => r.name);
+    const btn = document.getElementById('csv-import-btn'); btn.textContent = `Import ${valid.length} venue${valid.length!==1?'s':''}`; btn.disabled = !valid.length;
+    document.getElementById('csv-preview').style.display = 'block';
   }
-
   async function importCsv() {
-    const valid = csvRows.filter(r => r.name && r.lat && r.lng);
-    const btn = document.getElementById('csv-import-btn');
-    btn.disabled = true; btn.textContent = 'Importing…';
-
+    const valid = csvRows.filter(r => r.name);
+    const btn = document.getElementById('csv-import-btn'); btn.disabled = true; btn.textContent = 'Importing…';
     const { data, error } = await db.from('venues').insert(valid).select();
-    if (error) {
-      btn.disabled = false; btn.textContent = `Import ${valid.length} venues`;
-      alert('Import failed: ' + error.message); return;
-    }
-
-    venues = [...(data || []), ...venues];
-    renderStats(); renderSidebar(); renderVenueList();
-    closeCsvModal();
-    alert(`✓ ${valid.length} venue${valid.length !== 1 ? 's' : ''} imported successfully.`);
+    if (error) { btn.disabled = false; btn.textContent = `Import ${valid.length} venues`; alert('Import failed: ' + error.message); return; }
+    venues = [...(data||[]), ...venues];
+    renderStatsCard(); renderSidebar(); if (venueListMode) renderVenueList(); loadVenueMarkers();
+    closeCsvModal(); showToast(`✓ ${valid.length} venues imported`);
   }
 
   // ── Helpers ───────────────────────────────────────────────────
-  function h(str) {
-    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-  function a(str) {
-    return String(str ?? '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-  function today() {
-    return new Date().toISOString().split('T')[0];
-  }
+  function h(str) { return String(str??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function a(str) { return String(str??'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function today() { return new Date().toISOString().split('T')[0]; }
 
   // ── Auth ──────────────────────────────────────────────────────
   async function handleLogin(event) {
     event.preventDefault();
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
-    const btn = document.getElementById('login-submit');
-    const errBox = document.getElementById('login-error');
-    btn.disabled = true; btn.textContent = 'Signing in…';
-    errBox.style.display = 'none';
+    const btn = document.getElementById('login-submit'), errBox = document.getElementById('login-error');
+    btn.disabled = true; btn.textContent = 'Signing in…'; errBox.style.display = 'none';
     const { error } = await db.auth.signInWithPassword({ email, password });
     btn.disabled = false; btn.textContent = 'Sign in';
-    if (error) {
-      errBox.textContent = error.message || 'Sign in failed';
-      errBox.style.display = 'block';
-      return;
-    }
+    if (error) { errBox.textContent = error.message || 'Sign in failed'; errBox.style.display = 'block'; return; }
     showApp();
   }
-
-  async function handleLogout() {
-    await db.auth.signOut();
-    showLogin();
-  }
-
-  function showLogin() {
-    document.getElementById('app').style.display = 'none';
-    const screen = document.getElementById('login-screen');
-    screen.style.display = 'flex';
-    document.getElementById('login-password').value = '';
-  }
-
-  function showApp() {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-    init();
-  }
+  async function handleLogout() { await db.auth.signOut(); showLogin(); }
+  function showLogin() { document.getElementById('app').style.display = 'none'; document.getElementById('login-screen').style.display = 'flex'; document.getElementById('login-password').value = ''; }
+  function showApp() { document.getElementById('login-screen').style.display = 'none'; document.getElementById('app').style.display = 'flex'; init(); }
 
   (async () => {
     const { data: { session } } = await db.auth.getSession();
-    if (session) showApp();
-    else showLogin();
+    if (session) showApp(); else showLogin();
   })();
 </script>
+
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAybXD9Yk-ToYBWMXzHFZ_P5X6WSWLhezA&callback=initMap"></script>
 </body>
 </html>

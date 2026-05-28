@@ -41,6 +41,15 @@ const REASONS = [
   'Other',
 ];
 
+const WARNING_KEYWORDS = ['required', 'must', 'not allowed', 'no dogs', 'carrier', 'leash only', 'restricted'];
+function isWarningTag(tag: string): boolean {
+  const lower = tag.toLowerCase();
+  return WARNING_KEYWORDS.some(kw => lower.includes(kw));
+}
+function hasCarrierTag(tags: string[]): boolean {
+  return tags.some(t => t.toLowerCase().includes('carrier'));
+}
+
 export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Props) {
   const sheetRef   = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['65%'], []);
@@ -375,19 +384,24 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 {/* — Tags — */}
                 <Text style={styles.tagsLabel}>What's here</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
+                  {/* Warning tags first */}
+                  {venue.leash_free === false && !hasCarrierTag(venue.tags ?? []) && (
+                    <View style={styles.tagWarning}><Text style={styles.tagWarningText}>⚠ Leash required</Text></View>
+                  )}
+                  {Array.isArray(venue.tags) && venue.tags.filter(isWarningTag).map(tag => (
+                    <View key={tag} style={styles.tagWarning}><Text style={styles.tagWarningText}>⚠ {tag}</Text></View>
+                  ))}
+                  {/* Amenity tags after */}
                   {venue.pet_menu && (
                     <View style={styles.tag}><Text style={styles.tagText}>Pet menu</Text></View>
                   )}
                   {venue.leash_free === true && (
                     <View style={styles.tag}><Text style={styles.tagText}>Leash-free</Text></View>
                   )}
-                  {venue.leash_free === false && (
-                    <View style={styles.tag}><Text style={styles.tagText}>Leash required</Text></View>
-                  )}
                   <View style={styles.tag}>
                     <Text style={styles.tagText}>{getDogSizeLabel(venue.dog_sizes_allowed)}</Text>
                   </View>
-                  {Array.isArray(venue.tags) && venue.tags.map(tag => (
+                  {Array.isArray(venue.tags) && venue.tags.filter(t => !isWarningTag(t)).map(tag => (
                     <View key={tag} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>
                   ))}
                 </ScrollView>
@@ -575,8 +589,10 @@ const styles = StyleSheet.create({
   meta:         { fontSize: 14, fontFamily: Font.regular, color: '#6B6B6B' },
   tagsLabel:    { fontSize: 11, fontFamily: Font.semiBold, color: '#ABABAB', textTransform: 'uppercase', letterSpacing: 0.5 },
   tagsScroll:   { gap: 6, paddingBottom: 2 },
-  tag:          { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
-  tagText:      { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
+  tag:            { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
+  tagText:        { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
+  tagWarning:     { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 100, borderWidth: 1, borderColor: '#F59E0B', backgroundColor: '#FEF3C7' },
+  tagWarningText: { fontSize: 12, fontFamily: Font.semiBold, color: '#B45309' },
   verifiedDate: { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B', textAlign: 'center' },
   expiredText:  { color: '#F97316' },
   reportLink:   { alignItems: 'center', paddingVertical: 8 },
