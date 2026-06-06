@@ -2,7 +2,7 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, BackHandler, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { Font } from '@/constants/fonts';
@@ -10,7 +10,7 @@ import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
 import { VenueBottomSheet } from '@/components/VenueBottomSheet';
 import { supabase } from '@/lib/supabase';
-import { fetchPlaceRating } from '@/lib/places';
+import { fetchPlaceDetails } from '@/lib/places';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
 import { buildMarkerPositions, isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
@@ -35,6 +35,9 @@ function venueMatchesFilter(venue: Venue, filter: FilterKey): boolean {
     case 'Outdoor':
       return venue.seating_type === 'outdoor' || venue.seating_type === 'both';
     case 'Open Now': {
+      // Prefer live Google Places data when available
+      if (venue.openNow != null) return venue.openNow;
+      // Fallback: manually-entered Supabase hours
       if (!venue.hours) return false;
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       const hours = venue.hours[dayNames[new Date().getDay()]];
@@ -83,13 +86,20 @@ export default function MapScreen() {
     setLoadError(false);
     const venues = data as Venue[];
     const results = await Promise.allSettled(
-      venues.map(v => v.google_place_id ? fetchPlaceRating(v.google_place_id) : Promise.resolve(null))
+      venues.map(v => v.google_place_id ? fetchPlaceDetails(v.google_place_id) : Promise.resolve(null))
     );
     setVenues(
       venues.map((v, i) => {
         const r = results[i];
-        const rating = r.status === 'fulfilled' && r.value !== null ? r.value : undefined;
-        return rating !== undefined ? { ...v, rating } : v;
+        if (r.status !== 'fulfilled' || !r.value) return v;
+        const { rating, openNow, closingTime, weekdayHours } = r.value;
+        return {
+          ...v,
+          ...(rating        != null ? { rating }        : {}),
+          ...(openNow       != null ? { openNow }       : {}),
+          ...(closingTime   != null ? { closingTime }   : {}),
+          ...(weekdayHours  != null ? { weekdayHours }  : {}),
+        };
       })
     );
     setLoading(false);
@@ -161,8 +171,8 @@ export default function MapScreen() {
     setTracksViewChanges(true);
     setTimeout(() => setTracksViewChanges(false), 600);
     if (venue.lat == null || venue.lng == null) return;
-    // Centre pin in the visible map area above the 55% bottom sheet
-    const offset = currentRegion.latitudeDelta * 0.275;
+    // Centre pin in the visible map area above the 65% bottom sheet
+    const offset = currentRegion.latitudeDelta * 0.325;
     mapRef.current?.animateToRegion(
       {
         latitude: venue.lat - offset,
@@ -226,6 +236,7 @@ export default function MapScreen() {
     <View style={styles.container}>
       <MapView
         ref={mapRef}
+        provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFillObject}
         initialRegion={SINGAPORE_REGION}
         showsUserLocation={showUserLocation}

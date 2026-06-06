@@ -12,6 +12,9 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "PawMap uses your location to show pet-friendly cafes near you."
+      },
+      "config": {
+        "googleMapsApiKey": "AIzaSyAybXD9Yk-ToYBWMXzHFZ_P5X6WSWLhezA"
       }
     },
     "android": {
@@ -28,7 +31,11 @@
         "googleMaps": {
           "apiKey": "AIzaSyAybXD9Yk-ToYBWMXzHFZ_P5X6WSWLhezA"
         }
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -64,6 +71,12 @@
       "eas": {
         "projectId": "7572bf4d-8117-498b-8aeb-f6311c0e0120"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7572bf4d-8117-498b-8aeb-f6311c0e0120"
     }
   }
 }

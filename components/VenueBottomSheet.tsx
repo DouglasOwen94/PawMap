@@ -9,6 +9,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Easing,
   FlatList,
   Keyboard,
   Linking,
@@ -19,12 +20,12 @@ import {
   View,
   Modal,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Font } from '@/constants/fonts';
 import { supabase } from '@/lib/supabase';
 
-import { getDogSizeLabel, getSeatingLabel, getVerificationText, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
+import { getDogSizeLabel, getOpenStatus, getSeatingLabel, getVerificationText, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
 import { Skeleton } from '@/components/Skeleton';
 import type { Venue, CommunityPhoto } from '@/types/venue';
 
@@ -77,6 +78,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   const [uploadNotice, setUploadNotice]       = useState<string | null>(null);
 
   const [directionsVisible, setDirectionsVisible] = useState(false);
+  const [hoursExpanded, setHoursExpanded] = useState(false);
 
   // Report modal animation
   const overlayOpacity  = useRef(new Animated.Value(0)).current;
@@ -92,14 +94,14 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
       Animated.timing(keyboardOffset, {
         toValue: -e.endCoordinates.height,
         duration: e.duration || 250,
-        useNativeDriver: true,
+        useNativeDriver: false, // shares the sheet's transform with sheetTranslateY (JS-driven)
       }).start();
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
       Animated.timing(keyboardOffset, {
         toValue: 0,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: false, // must match sheetTranslateY's driver (same transform)
       }).start();
     });
     return () => { show.remove(); hide.remove(); };
@@ -108,6 +110,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   useEffect(() => {
     if (venue) {
       sheetRef.current?.snapToIndex(0);
+      setHoursExpanded(false);
       setPhotosLoading(true);
       setPhotosError(false);
       setCommunityPhotos([]);
@@ -147,14 +150,15 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
     keyboardOffset.setValue(0);
     Animated.parallel([
       Animated.timing(overlayOpacity,  { toValue: 1, duration: 260, useNativeDriver: true }),
-      Animated.spring(sheetTranslateY, { toValue: 0, damping: 22, stiffness: 220, useNativeDriver: true }),
+      // JS driver + timing (not spring) so taps register mid-slide with no jitter.
+      Animated.timing(sheetTranslateY, { toValue: 0, duration: 320, easing: Easing.bezier(0.32, 0.72, 0, 1), useNativeDriver: false }),
     ]).start();
   }
 
   function closeReport() {
     Animated.parallel([
       Animated.timing(overlayOpacity,   { toValue: 0, duration: 200, useNativeDriver: true }),
-      Animated.timing(sheetTranslateY,  { toValue: 400, duration: 220, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY,  { toValue: 400, duration: 220, useNativeDriver: false }),
     ]).start(() => setReportVisible(false));
   }
 
@@ -259,15 +263,18 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
     dirOverlayOpacity.setValue(0);
     dirTranslateY.setValue(300);
     Animated.parallel([
+      // JS driver (not native) so the sheet's touch hit-area tracks the slide
+      // frame-by-frame — otherwise taps during the animation miss the buttons.
+      // timing (not spring) avoids overshoot, which jitters on the JS thread.
       Animated.timing(dirOverlayOpacity, { toValue: 1, duration: 260, useNativeDriver: false }),
-      Animated.spring(dirTranslateY, { toValue: 0, damping: 22, stiffness: 220, useNativeDriver: false }),
+      Animated.timing(dirTranslateY, { toValue: 0, duration: 320, easing: Easing.bezier(0.32, 0.72, 0, 1), useNativeDriver: false }),
     ]).start();
   }
 
   function closeDirections() {
     Animated.parallel([
-      Animated.timing(dirOverlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
-      Animated.timing(dirTranslateY, { toValue: 300, duration: 220, useNativeDriver: true }),
+      Animated.timing(dirOverlayOpacity, { toValue: 0, duration: 200, useNativeDriver: false }),
+      Animated.timing(dirTranslateY, { toValue: 300, duration: 220, useNativeDriver: false }),
     ]).start(() => setDirectionsVisible(false));
   }
 
@@ -371,52 +378,121 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
               })()}
 
               <View style={styles.body}>
-                {/* — Header: badge + name + meta — */}
-                {verified && (
-                  <View style={styles.badgeRow}>
-                    <View style={styles.verifiedDot} />
-                    <Text style={styles.badgeText}>Indoor Verified</Text>
-                  </View>
-                )}
-                {expired && (
-                  <View style={styles.badgeRow}>
-                    <View style={[styles.verifiedDot, { backgroundColor: '#ABABAB' }]} />
-                    <Text style={[styles.badgeText, { color: '#ABABAB' }]}>Verification Expired</Text>
-                  </View>
-                )}
-                <Text style={styles.name}>{venue.name}</Text>
-                <Text style={styles.meta}>
-                  {venue.neighbourhood} · {getSeatingLabel(venue.seating_type)}
-                </Text>
+                {/* ── Identity: name · meta · status chips ── */}
+                <View style={styles.identity}>
+                  <Text style={styles.name}>{venue.name}</Text>
+                  <Text style={styles.metaLine}>
+                    {typeof venue.rating === 'number' && (
+                      <Text>
+                        <Text style={styles.metaStar}>★</Text>
+                        <Text style={styles.metaRating}> {venue.rating.toFixed(1)} </Text>
+                        ·{' '}
+                      </Text>
+                    )}
+                    {venue.neighbourhood} · {getSeatingLabel(venue.seating_type)}
+                  </Text>
 
-                <View style={styles.divider} />
+                  <View style={styles.chipRow}>
+                    {verified && (
+                      <View style={styles.verifiedChip}>
+                        <View style={styles.verifiedChipDot} />
+                        <Text style={styles.verifiedChipText}>Indoor Verified</Text>
+                      </View>
+                    )}
+                    {expired && (
+                      <View style={styles.expiredChip}>
+                        <Ionicons name="alert-circle-outline" size={13} color="#6B6B6B" />
+                        <Text style={styles.expiredChipText}>Verification Expired</Text>
+                      </View>
+                    )}
+                    {(() => {
+                      const status = getOpenStatus(venue);
+                      if (status.status === 'unknown') return null;
+                      return (
+                        <TouchableOpacity
+                          onPress={() => setHoursExpanded(e => !e)}
+                          activeOpacity={0.7}
+                          style={styles.statusChip}
+                          accessibilityRole="button"
+                          accessibilityLabel={hoursExpanded ? 'Collapse opening hours' : 'Expand opening hours'}
+                        >
+                          <View style={[styles.statusChipDot, { backgroundColor: status.color }]} />
+                          <Text style={styles.statusChipText}>{status.label}</Text>
+                          <Ionicons name={hoursExpanded ? 'chevron-up' : 'chevron-down'} size={12} color="#6B6B6B" />
+                        </TouchableOpacity>
+                      );
+                    })()}
+                  </View>
 
-                {/* — Location — */}
-                <View style={styles.locationSection}>
+                  {hoursExpanded && venue.weekdayHours && (
+                    <View style={styles.hoursList}>
+                      {venue.weekdayHours.map((line, i) => {
+                        const todayIdx = (new Date().getDay() + 6) % 7; // Mon=0 … Sun=6
+                        return (
+                          <Text
+                            key={i}
+                            style={[styles.hoursLine, i === todayIdx && styles.hoursLineToday]}
+                          >
+                            {line}
+                          </Text>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+
+                {/* ── Address + actions ── */}
+                <View style={styles.actionSection}>
                   {venue.address && (
-                    <View style={styles.addressTextRow}>
-                      <Ionicons name="location-outline" size={13} color="#6B6B6B" />
+                    <View style={styles.addressRow}>
+                      <Ionicons name="location-outline" size={14} color="#6B6B6B" />
                       <Text style={styles.address}>{venue.address}</Text>
                     </View>
                   )}
-                  <View style={styles.locationBtns}>
-                    <TouchableOpacity style={styles.goNowBtn} onPress={openDirections} activeOpacity={0.75}>
-                      <Text style={styles.goNowText}>Go now →</Text>
+                  <View style={styles.actionBtns}>
+                    <TouchableOpacity style={styles.primaryBtn} onPress={openDirections} activeOpacity={0.85}>
+                      <Ionicons name="navigate" size={15} color="#FFFFFF" />
+                      <Text style={styles.primaryBtnText}>Go now</Text>
                     </TouchableOpacity>
                     {venue.review_url && (
-                      <TouchableOpacity style={styles.watchReviewBtn} onPress={openReview} activeOpacity={0.75}>
-                        <Ionicons name="logo-tiktok" size={12} color="#1A1A1A" />
-                        <Text style={styles.watchReviewText}>Watch review</Text>
+                      <TouchableOpacity style={styles.secondaryBtn} onPress={openReview} activeOpacity={0.75}>
+                        <Ionicons name="logo-tiktok" size={13} color="#1A1A1A" />
+                        <Text style={styles.secondaryBtnText}>Watch review</Text>
                       </TouchableOpacity>
                     )}
                   </View>
                 </View>
 
-                <View style={styles.divider} />
+                {/* ── Tags ── */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>What&apos;s here</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
+                    {/* Warning tags first */}
+                    {venue.leash_free === false && !hasCarrierTag(venue.tags ?? []) && (
+                      <View style={styles.tagWarning}><Text style={styles.tagWarningText}>⚠ Leash required</Text></View>
+                    )}
+                    {Array.isArray(venue.tags) && venue.tags.filter(isWarningTag).map(tag => (
+                      <View key={tag} style={styles.tagWarning}><Text style={styles.tagWarningText}>⚠ {tag}</Text></View>
+                    ))}
+                    {/* Amenity tags after */}
+                    {venue.pet_menu && (
+                      <View style={styles.tag}><Text style={styles.tagText}>Pet menu</Text></View>
+                    )}
+                    {venue.leash_free === true && (
+                      <View style={styles.tag}><Text style={styles.tagText}>Leash-free</Text></View>
+                    )}
+                    <View style={styles.tag}>
+                      <Text style={styles.tagText}>{getDogSizeLabel(venue.dog_sizes_allowed)}</Text>
+                    </View>
+                    {Array.isArray(venue.tags) && venue.tags.filter(t => !isWarningTag(t)).map(tag => (
+                      <View key={tag} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>
+                    ))}
+                  </ScrollView>
+                </View>
 
-                {/* Community photos strip */}
-                <View style={styles.communitySection}>
-                  <Text style={styles.communityLabel}>From the community</Text>
+                {/* ── Community photos ── */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>From the community</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
                     {communityPhotos.length < 10 && (
                       <View style={styles.addPhotoBtnWrapper}>
@@ -438,7 +514,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                     )}
                     {photosLoading
                       ? [0, 1, 2].map(i => (
-                          <Skeleton key={i} width={80} height={80} radius={8} />
+                          <Skeleton key={i} width={80} height={80} radius={10} />
                         ))
                       : communityPhotos.map((photo, i) => (
                           <TouchableOpacity
@@ -469,42 +545,19 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                   )}
                 </View>
 
-                <View style={styles.divider} />
-
-                {/* — Tags — */}
-                <Text style={styles.tagsLabel}>What&apos;s here</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
-                  {/* Warning tags first */}
-                  {venue.leash_free === false && !hasCarrierTag(venue.tags ?? []) && (
-                    <View style={styles.tagWarning}><Text style={styles.tagWarningText}>⚠ Leash required</Text></View>
-                  )}
-                  {Array.isArray(venue.tags) && venue.tags.filter(isWarningTag).map(tag => (
-                    <View key={tag} style={styles.tagWarning}><Text style={styles.tagWarningText}>⚠ {tag}</Text></View>
-                  ))}
-                  {/* Amenity tags after */}
-                  {venue.pet_menu && (
-                    <View style={styles.tag}><Text style={styles.tagText}>Pet menu</Text></View>
-                  )}
-                  {venue.leash_free === true && (
-                    <View style={styles.tag}><Text style={styles.tagText}>Leash-free</Text></View>
-                  )}
-                  <View style={styles.tag}>
-                    <Text style={styles.tagText}>{getDogSizeLabel(venue.dog_sizes_allowed)}</Text>
-                  </View>
-                  {Array.isArray(venue.tags) && venue.tags.filter(t => !isWarningTag(t)).map(tag => (
-                    <View key={tag} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>
-                  ))}
-                </ScrollView>
-
-                <View style={styles.divider} />
-
-                {/* — Footer: verified date + report link — */}
-                <Text style={[styles.verifiedDate, expired && styles.expiredText]}>
-                  {getVerificationText(venue)}
-                </Text>
-                <TouchableOpacity style={styles.reportLink} activeOpacity={0.6} onPress={openReport}>
-                  <Text style={styles.reportLinkText}>Report a Change</Text>
-                </TouchableOpacity>
+                {/* ── Footer: verification + report ── */}
+                <View style={styles.footer}>
+                  <Text style={[styles.verifiedDate, expired && styles.expiredText]}>
+                    {getVerificationText(venue)}
+                  </Text>
+                  <TouchableOpacity
+                    activeOpacity={0.6}
+                    onPress={openReport}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Text style={styles.reportLinkText}>Report a change</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </>
           )}
@@ -513,7 +566,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
 
       {/* Full-screen community photo preview */}
       <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
-        <View style={styles.previewOverlay}>
+        <GestureHandlerRootView style={styles.previewOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setPreviewIndex(null)} activeOpacity={1} />
           <FlatList
             data={communityPhotos}
@@ -544,12 +597,14 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
           >
             <Ionicons name="close" size={22} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
+        </GestureHandlerRootView>
       </Modal>
 
       {/* Directions action sheet */}
       <Modal visible={directionsVisible} transparent animationType="none" onRequestClose={() => closeDirections()}>
-        <View style={{ flex: 1 }}>
+        {/* GestureHandlerRootView is required inside a Modal so touchables register
+            on the first tap — the Modal renders outside the app's root gesture handler. */}
+        <GestureHandlerRootView style={{ flex: 1 }}>
           {/* Dim overlay — visual only, never intercepts taps */}
           <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)', opacity: dirOverlayOpacity }]} pointerEvents="none" />
           {/* Backdrop tap area — only covers space above the sheet */}
@@ -578,7 +633,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
               <Text style={styles.directionsCancelText}>Cancel</Text>
             </TouchableOpacity>
           </Animated.View>
-        </View>
+        </GestureHandlerRootView>
       </Modal>
 
       <Modal
@@ -587,6 +642,8 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
         animationType="none"
         onRequestClose={closeReport}
       >
+        {/* GestureHandlerRootView required inside Modal — see directions sheet note */}
+        <GestureHandlerRootView style={{ flex: 1 }}>
         {/* Faded overlay — animates independently from the sheet */}
         <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]}>
           <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={closeReport} activeOpacity={1} />
@@ -671,6 +728,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
               )}
           </Animated.View>
         </Animated.View>
+        </GestureHandlerRootView>
       </Modal>
     </>
   );
@@ -700,23 +758,54 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  body:         { paddingHorizontal: 20, paddingTop: 16, gap: 12 },
-  divider:      { height: StyleSheet.hairlineWidth, backgroundColor: '#E8E8E4', marginVertical: 4 },
-  badgeRow:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  verifiedDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
-  badgeText:    { fontSize: 12, fontFamily: Font.semiBold, color: '#22C55E', letterSpacing: 0.3 },
-  name:         { fontSize: 20, fontFamily: Font.bold, color: '#0A0A0A' },
-  meta:         { fontSize: 14, fontFamily: Font.regular, color: '#6B6B6B' },
-  tagsLabel:    { fontSize: 11, fontFamily: Font.semiBold, color: '#ABABAB', textTransform: 'uppercase', letterSpacing: 0.5 },
-  tagsScroll:   { gap: 6, paddingBottom: 2 },
-  tag:            { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
+  body:         { paddingHorizontal: 20, paddingTop: 18, gap: 20 },
+
+  // Identity
+  identity:     { gap: 10 },
+  name:         { fontSize: 21, fontFamily: Font.bold, color: '#0A0A0A', letterSpacing: -0.2 },
+  metaLine:     { fontSize: 14, fontFamily: Font.regular, color: '#6B6B6B' },
+  metaStar:     { color: '#F59E0B' },
+  metaRating:   { fontFamily: Font.semiBold, color: '#1A1A1A' },
+
+  // Status chips
+  chipRow:          { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  verifiedChip:     { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(34,197,94,0.12)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 100 },
+  verifiedChipDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: '#22C55E' },
+  verifiedChipText: { fontSize: 12, fontFamily: Font.semiBold, color: '#16A34A' },
+  expiredChip:      { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F1F1EF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 100 },
+  expiredChipText:  { fontSize: 12, fontFamily: Font.semiBold, color: '#6B6B6B' },
+  statusChip:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F7F7F5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 100 },
+  statusChipDot:    { width: 7, height: 7, borderRadius: 4 },
+  statusChipText:   { fontSize: 12, fontFamily: Font.medium, color: '#1A1A1A' },
+
+  hoursList:      { paddingTop: 2, paddingLeft: 2, gap: 4 },
+  hoursLine:      { fontSize: 13, fontFamily: Font.regular, color: '#6B6B6B', lineHeight: 19 },
+  hoursLineToday: { fontFamily: Font.semiBold, color: '#0A0A0A' },
+
+  // Address + actions
+  actionSection:    { gap: 12 },
+  addressRow:       { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  address:          { fontSize: 13, fontFamily: Font.regular, color: '#6B6B6B', flexShrink: 1 },
+  actionBtns:       { flexDirection: 'row', gap: 8 },
+  primaryBtn:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#0A0A0A', paddingVertical: 12, borderRadius: 100 },
+  primaryBtnText:   { fontSize: 14, fontFamily: Font.semiBold, color: '#FFFFFF' },
+  secondaryBtn:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
+  secondaryBtnText: { fontSize: 14, fontFamily: Font.medium, color: '#1A1A1A' },
+
+  // Sections (tags, community)
+  section:        { gap: 10 },
+  sectionLabel:   { fontSize: 11, fontFamily: Font.semiBold, color: '#ABABAB', textTransform: 'uppercase', letterSpacing: 0.5 },
+  tagsScroll:     { gap: 6, paddingBottom: 2 },
+  tag:            { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
   tagText:        { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
-  tagWarning:     { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 100, borderWidth: 1, borderColor: '#F59E0B', backgroundColor: '#FEF3C7' },
+  tagWarning:     { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 100, borderWidth: 1, borderColor: '#F59E0B', backgroundColor: '#FEF3C7' },
   tagWarningText: { fontSize: 12, fontFamily: Font.semiBold, color: '#B45309' },
-  verifiedDate: { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B', textAlign: 'center' },
-  expiredText:  { color: '#F97316' },
-  reportLink:   { alignItems: 'center', paddingVertical: 8 },
-  reportLinkText: { fontSize: 13, fontFamily: Font.regular, color: '#ABABAB' },
+
+  // Footer
+  footer:         { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E8E8E4', paddingTop: 14, gap: 8 },
+  verifiedDate:   { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
+  expiredText:    { color: '#F97316' },
+  reportLinkText: { fontSize: 13, fontFamily: Font.medium, color: '#6B6B6B', textDecorationLine: 'underline' },
 
   // Modal
   modalOverlay: {
@@ -758,25 +847,14 @@ const styles = StyleSheet.create({
   successText:    { fontSize: 16, fontFamily: Font.semiBold, color: '#0A0A0A' },
 
   // Community photos
-  communitySection: { paddingTop: 4, paddingBottom: 4 },
-  communityLabel:   { fontSize: 11, fontFamily: Font.semiBold, color: '#ABABAB', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   communityRow:     { gap: 8, paddingBottom: 4 },
-  communityThumb:   { width: 80, height: 80, borderRadius: 8 },
-  addPhotoBtn:      { width: 80, height: 80, borderRadius: 8, borderWidth: 1.5, borderColor: '#E8E8E4', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F7F5' },
+  communityThumb:   { width: 80, height: 80, borderRadius: 10 },
+  addPhotoBtn:      { width: 80, height: 80, borderRadius: 10, borderWidth: 1.5, borderColor: '#E8E8E4', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F7F5' },
   addPhotoBtnText:  { fontSize: 24, color: '#ABABAB', lineHeight: 28 },
   addPhotoBtnWrapper: { alignItems: 'center', gap: 6, width: 80 },
   addPhotoHint:       { fontSize: 11, fontFamily: Font.regular, color: '#ABABAB', textAlign: 'center', lineHeight: 15 },
   uploadErrorText:  { fontSize: 12, fontFamily: Font.medium, color: '#EF4444', marginTop: 4 },
   uploadNoticeText: { fontSize: 12, fontFamily: Font.medium, color: '#22C55E', marginTop: 4 },
-
-  locationSection: { gap: 6 },
-  locationBtns:    { flexDirection: 'row', gap: 8 },
-  watchReviewBtn:  { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
-  watchReviewText: { fontSize: 13, fontFamily: Font.medium, color: '#1A1A1A' },
-  addressTextRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  address:         { fontSize: 13, fontFamily: Font.regular, color: '#6B6B6B', flexShrink: 1 },
-  goNowBtn:        { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
-  goNowText:       { fontSize: 13, fontFamily: Font.medium, color: '#1A1A1A' },
 
   // Directions sheet
   directionsSheet:      { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 10 },

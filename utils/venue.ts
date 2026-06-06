@@ -45,6 +45,24 @@ export function getDogSizeLabel(size: Venue['dog_sizes_allowed']): string {
   }
 }
 
+type OpenStatus =
+  | { status: 'open';    label: string; color: string }
+  | { status: 'closed';  label: string; color: string }
+  | { status: 'unknown' };
+
+/**
+ * Returns the live open/closed status for a venue using Google Places data.
+ * Returns `{ status: 'unknown' }` when no Places data is available.
+ */
+export function getOpenStatus(venue: Venue): OpenStatus {
+  if (venue.openNow == null) return { status: 'unknown' };
+  if (venue.openNow) {
+    const label = venue.closingTime ? `Open · Closes ${venue.closingTime}` : 'Open now';
+    return { status: 'open', label, color: '#22C55E' };
+  }
+  return { status: 'closed', label: 'Closed', color: '#EF4444' };
+}
+
 export function getPinColor(venue: Venue): string {
   if (isExpiredVenue(venue)) return '#ABABAB';
   if (isIndoorVerified(venue)) return '#22C55E';

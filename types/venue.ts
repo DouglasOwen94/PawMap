@@ -9,7 +9,11 @@ export type CommunityPhoto = {
 export type Venue = {
   id: number;
   name: string;
-  rating?: number;
+  // Populated client-side by Google Places API — never stored in Supabase
+  rating?:       number;
+  openNow?:      boolean | null;
+  closingTime?:  string | null;
+  weekdayHours?: string[] | null;
   city: string;
   neighbourhood: string;
   lat: number | null;

@@ -76,7 +76,8 @@ Bottom sheet entrance and filter chip position: `translateY` / `bottom`, **350ms
 - [x] Address + Map pin — address shown on venue card; tapping opens Google Maps pin (free deep link, no API key needed)
 - [x] Community photos — users upload photos from the venue card; shown as a scrollable strip below founder photos. Photos default to is_visible:false (pending review). Dashboard has a 📸 Photos badge in sidebar showing pending count, with approve/reject per photo, per venue, or bulk. Max 5MB, JPG/PNG/WEBP only.
 - [ ] Login screen (Google SSO + Apple Sign In)
-- [ ] Google Places API integration — Open Now / Closes Soon / Closed tags, Busy / Moderate / Quiet tags, expandable opening hours on venue card
+- [x] Google Places API integration — Open Now / Closed badge with closing time, expandable weekly hours on venue card, live rating in bottom sheet; Open Now filter uses live data with Supabase hours fallback
+- [ ] **TODO (future):** Busy / Moderate / Quiet crowd tags — NOT available via standard Places API (only visible on Google Maps). Needs an unofficial scraper or a different data source. Investigate for v2.
 
 ---
 
