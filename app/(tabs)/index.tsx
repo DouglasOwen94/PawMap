@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, StyleSheet, View } from 'react-native';
+import { Alert, AppState, BackHandler, StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
@@ -108,6 +108,20 @@ export default function MapScreen() {
       fetchVenues();
       return () => clearTimeout(timer);
     }, [])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (selectedVenue !== null) {
+          handleSheetClose();
+          return true;
+        }
+        return false;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [selectedVenue])
   );
 
   function handleFilterSelect(filter: FilterKey) {

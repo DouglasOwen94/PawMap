@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -215,6 +216,13 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
     Linking.openURL(`https://waze.com/ul?q=${query}&navigate=yes`);
   }
 
+  function openReview() {
+    if (!venue?.review_url) return;
+    Linking.openURL(venue.review_url).catch(() =>
+      Alert.alert("Couldn't open link", 'Try copying the link manually or check your internet connection.')
+    );
+  }
+
   function openDirections() {
     setDirectionsVisible(true);
     dirOverlayOpacity.setValue(0);
@@ -319,32 +327,6 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 );
               })()}
 
-              {/* Community photos strip */}
-              <View style={styles.communitySection}>
-                <Text style={styles.communityLabel}>From the community</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
-                  {communityPhotos.length < 10 && (
-                    <View style={styles.addPhotoBtnWrapper}>
-                      <TouchableOpacity style={styles.addPhotoBtn} onPress={handleAddPhoto} activeOpacity={0.7} disabled={uploading}>
-                        <Text style={styles.addPhotoBtnText}>{uploading ? '…' : '+'}</Text>
-                      </TouchableOpacity>
-                      <Text style={styles.addPhotoHint}>Love this place?{'\n'}Share a photo.</Text>
-                    </View>
-                  )}
-                  {communityPhotos.map((photo, i) => (
-                    <TouchableOpacity key={photo.id} onPress={() => setPreviewIndex(i)} activeOpacity={0.85}>
-                      <Image source={{ uri: photo.photo_url }} style={styles.communityThumb} contentFit="cover" transition={300} />
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                {uploadError && (
-                  <Text style={styles.uploadErrorText}>{uploadError}</Text>
-                )}
-                {uploadNotice && (
-                  <Text style={styles.uploadNoticeText}>{uploadNotice}</Text>
-                )}
-              </View>
-
               <View style={styles.body}>
                 {/* — Header: badge + name + meta — */}
                 {verified && (
@@ -374,9 +356,45 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                       <Text style={styles.address}>{venue.address}</Text>
                     </View>
                   )}
-                  <TouchableOpacity style={styles.goNowBtn} onPress={openDirections} activeOpacity={0.75}>
-                    <Text style={styles.goNowText}>Go now →</Text>
-                  </TouchableOpacity>
+                  <View style={styles.locationBtns}>
+                    <TouchableOpacity style={styles.goNowBtn} onPress={openDirections} activeOpacity={0.75}>
+                      <Text style={styles.goNowText}>Go now →</Text>
+                    </TouchableOpacity>
+                    {venue.review_url && (
+                      <TouchableOpacity style={styles.watchReviewBtn} onPress={openReview} activeOpacity={0.75}>
+                        <Ionicons name="logo-tiktok" size={12} color="#1A1A1A" />
+                        <Text style={styles.watchReviewText}>Watch review</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Community photos strip */}
+                <View style={styles.communitySection}>
+                  <Text style={styles.communityLabel}>From the community</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
+                    {communityPhotos.length < 10 && (
+                      <View style={styles.addPhotoBtnWrapper}>
+                        <TouchableOpacity style={styles.addPhotoBtn} onPress={handleAddPhoto} activeOpacity={0.7} disabled={uploading}>
+                          <Text style={styles.addPhotoBtnText}>{uploading ? '…' : '+'}</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.addPhotoHint}>Love this place?{'\n'}Share a photo.</Text>
+                      </View>
+                    )}
+                    {communityPhotos.map((photo, i) => (
+                      <TouchableOpacity key={photo.id} onPress={() => setPreviewIndex(i)} activeOpacity={0.85}>
+                        <Image source={{ uri: photo.photo_url }} style={styles.communityThumb} contentFit="cover" transition={300} />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  {uploadError && (
+                    <Text style={styles.uploadErrorText}>{uploadError}</Text>
+                  )}
+                  {uploadNotice && (
+                    <Text style={styles.uploadNoticeText}>{uploadNotice}</Text>
+                  )}
                 </View>
 
                 <View style={styles.divider} />
@@ -636,7 +654,7 @@ const styles = StyleSheet.create({
   successText:    { fontSize: 16, fontFamily: Font.semiBold, color: '#0A0A0A' },
 
   // Community photos
-  communitySection: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  communitySection: { paddingTop: 4, paddingBottom: 4 },
   communityLabel:   { fontSize: 11, fontFamily: Font.semiBold, color: '#ABABAB', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   communityRow:     { gap: 8, paddingBottom: 4 },
   communityThumb:   { width: 80, height: 80, borderRadius: 8 },
@@ -648,6 +666,9 @@ const styles = StyleSheet.create({
   uploadNoticeText: { fontSize: 12, fontFamily: Font.medium, color: '#22C55E', marginTop: 4 },
 
   locationSection: { gap: 6 },
+  locationBtns:    { flexDirection: 'row', gap: 8 },
+  watchReviewBtn:  { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
+  watchReviewText: { fontSize: 13, fontFamily: Font.medium, color: '#1A1A1A' },
   addressTextRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
   address:         { fontSize: 13, fontFamily: Font.regular, color: '#6B6B6B', flexShrink: 1 },
   goNowBtn:        { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },

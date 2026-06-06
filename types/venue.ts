@@ -26,6 +26,7 @@ export type Venue = {
   hours: Record<string, { open: string; close: string }> | null;
   address: string | null;
   google_place_id: string | null;
+  review_url: string | null;
   is_active: boolean;
   status: 'live' | 'pending' | 'expired';
   tags?: string[];

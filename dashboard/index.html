@@ -958,6 +958,7 @@
               <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;flex-wrap:wrap;">
                 <span style="font-weight:700;font-size:13px;color:var(--text);">${h(v.name)}</span>
                 ${hasDupe ? `<span style="font-size:11px;font-weight:600;color:var(--orange);">⚠ Duplicate</span>` : ''}
+                ${v.review_url ? `<span style="font-size:11px;font-weight:600;color:var(--text3);">▶ Review</span>` : ''}
               </div>
               <p style="font-size:11px;color:var(--text2);margin-bottom:5px;">${[v.neighbourhood, v.city].filter(Boolean).map(h).join(' · ')}</p>
               <div style="display:flex;flex-wrap:wrap;gap:4px;">
@@ -1013,9 +1014,26 @@
     communityPhotos = [];
     renderEditPanel();
     document.getElementById('edit-panel').style.transform = 'translateX(0)';
+    if (selectedVenue.review_url) checkReviewUrl(selectedVenue.review_url);
     document.getElementById('overlay').style.display = 'block';
     const { data } = await db.from('community_photos').select('*').eq('venue_id', id).order('created_at', { ascending: false });
     if (data) { communityPhotos = data; renderCommunityPhotos(); }
+  }
+
+  async function checkReviewUrl(url) {
+    const warningEl = document.getElementById('review-url-warning');
+    if (!warningEl) return;
+    try {
+      const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(oembedUrl)}`;
+      const resp = await fetch(proxyUrl);
+      const data = await resp.json();
+      if (data.status && data.status.http_code !== 200) {
+        warningEl.style.display = 'block';
+      }
+    } catch (e) {
+      // Proxy unavailable — skip silently, no false warning
+    }
   }
 
   function closePanel() {
@@ -1068,6 +1086,7 @@
             ${tog('Leash-free','f-leash-free',v.leash_free)}
           </div>
           ${fld('Google Place ID',`<input id="f-place-id" value="${a(v.google_place_id||'')}" placeholder="ChIJ…" class="input-field">`)}
+          ${fld('TikTok Review URL', `<div style="display:flex;gap:8px;align-items:center;"><input id="f-review-url" value="${a(v.review_url||'')}" placeholder="https://www.tiktok.com/@user/video/..." class="input-field" style="flex:1;"><button type="button" onclick="const u=document.getElementById('f-review-url').value.trim();if(u)window.open(u,'_blank');" style="flex-shrink:0;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">Test ↗</button></div><div id="review-url-warning" style="display:none;margin-top:8px;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--orange);font-weight:600;">⚠ This video may have been deleted — update the link above</div>`)}
           <div>
             <label class="field-label">Amenity Tags</label>
             <div style="display:flex;flex-wrap:wrap;gap:8px;">
@@ -1292,6 +1311,7 @@
       pet_menu:           document.getElementById('f-pet-menu').checked,
       leash_free:         document.getElementById('f-leash-free').checked,
       google_place_id:    document.getElementById('f-place-id').value.trim() || null,
+      review_url:         document.getElementById('f-review-url').value.trim() || null,
       lat:                parseFloat(document.getElementById('f-lat')?.value) || null,
       lng:                parseFloat(document.getElementById('f-lng')?.value) || null,
       tags:               [...document.querySelectorAll('.tag-cb:checked')].map(cb => cb.value),
