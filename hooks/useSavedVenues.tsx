@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import type { Venue } from '@/types/venue';
 
@@ -17,8 +18,10 @@ const SavedVenuesContext = createContext<SavedVenuesContextValue | null>(null);
 async function persist(ids: number[]) {
   try {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
-  } catch {
-    // silently swallow storage errors
+  } catch (e) {
+    // Storage full / unavailable — saves won't persist across restarts.
+    // Surface in logs so it isn't completely invisible.
+    console.warn('[SavedVenues] Failed to persist saved IDs:', e);
   }
 }
 
@@ -31,12 +34,13 @@ export function SavedVenuesProvider({ children }: { children: ReactNode }) {
       .then(raw => {
         if (raw) setSavedIds(JSON.parse(raw));
       })
-      .catch(() => {});
+      .catch(e => console.warn('[SavedVenues] Failed to load saved IDs:', e));
   }, []);
 
   const isSaved = useCallback((id: number) => savedIds.includes(id), [savedIds]);
 
   const toggleSave = useCallback((venue: Venue) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setSavedIds(prev => {
       const wasSaved = prev.includes(venue.id);
       const next = wasSaved

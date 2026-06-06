@@ -1,9 +1,11 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, BackHandler, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, BackHandler, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
+import { Font } from '@/constants/fonts';
 import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
 import { VenueBottomSheet } from '@/components/VenueBottomSheet';
@@ -56,8 +58,11 @@ function venueMatchesFilters(venue: Venue, filters: FilterKey[]): boolean {
 
 export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
+  const insets = useSafeAreaInsets();
   const { isSaved, toggleSave } = useSavedVenues();
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const markerPositions = useMemo(() => buildMarkerPositions(venues), [venues]);
   const [showUserLocation, setShowUserLocation] = useState(false);
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
@@ -70,7 +75,12 @@ export default function MapScreen() {
 
   async function fetchVenues() {
     const { data, error } = await supabase.from('venues').select('*').eq('status', 'live');
-    if (error || !data) return;
+    if (error || !data) {
+      setLoadError(true);
+      setLoading(false);
+      return;
+    }
+    setLoadError(false);
     const venues = data as Venue[];
     const results = await Promise.allSettled(
       venues.map(v => v.google_place_id ? fetchPlaceRating(v.google_place_id) : Promise.resolve(null))
@@ -82,6 +92,12 @@ export default function MapScreen() {
         return rating !== undefined ? { ...v, rating } : v;
       })
     );
+    setLoading(false);
+  }
+
+  function handleRetry() {
+    setLoading(true);
+    fetchVenues();
   }
 
   useEffect(() => {
@@ -244,6 +260,27 @@ export default function MapScreen() {
         }
       </MapView>
 
+      {loading && venues.length === 0 && !loadError && (
+        <View style={[styles.statusPill, { top: insets.top + 12 }]} pointerEvents="none">
+          <ActivityIndicator size="small" color="#6B6B6B" />
+          <Text style={styles.statusPillText}>Loading venues…</Text>
+        </View>
+      )}
+
+      {loadError && venues.length === 0 && (
+        <View style={[styles.errorBanner, { top: insets.top + 12 }]}>
+          <Text style={styles.errorBannerText}>Couldn&apos;t load venues.</Text>
+          <TouchableOpacity
+            onPress={handleRetry}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading venues"
+          >
+            <Text style={styles.errorBannerRetry}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <FilterChips active={activeFilters} onSelect={handleFilterSelect} />
 
       <VenueBottomSheet
@@ -259,6 +296,60 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  statusPill: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: '#E8E8E4',
+    shadowColor: '#0A0A0A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statusPillText: {
+    fontSize: 13,
+    fontFamily: Font.medium,
+    color: '#6B6B6B',
+  },
+  errorBanner: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFFFFF',
+    paddingLeft: 16,
+    paddingRight: 8,
+    paddingVertical: 8,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.25)',
+    shadowColor: '#0A0A0A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  errorBannerText: {
+    fontSize: 13,
+    fontFamily: Font.medium,
+    color: '#1A1A1A',
+  },
+  errorBannerRetry: {
+    fontSize: 13,
+    fontFamily: Font.semiBold,
+    color: '#EF4444',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
 });
 

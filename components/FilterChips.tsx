@@ -50,6 +50,8 @@ export function FilterChips({ active, onSelect }: Props) {
             onPress={() => onSelect('All')}
             style={styles.clearChip}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Clear all filters"
           >
             <Text style={styles.clearLabel}>✕ Clear</Text>
           </TouchableOpacity>
@@ -62,6 +64,9 @@ export function FilterChips({ active, onSelect }: Props) {
               onPress={() => onSelect(key)}
               style={[styles.chip, isActive && styles.chipActive]}
               activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`Filter: ${label}`}
+              accessibilityState={{ selected: isActive }}
             >
               <Text style={[styles.label, isActive && styles.labelActive]}>{label}</Text>
             </TouchableOpacity>

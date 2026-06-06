@@ -1,9 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import { supabase } from '@/lib/supabase';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -64,6 +66,9 @@ function ChipRow<T extends string | number | boolean>({ options, value, onChange
             key={String(opt.v)}
             onPress={() => onChange(opt.v)}
             activeOpacity={0.75}
+            accessibilityRole="radio"
+            accessibilityLabel={opt.l}
+            accessibilityState={{ selected: active }}
             style={[styles.chip, active && styles.chipActive, !active && error && styles.chipError]}
           >
             <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{opt.l}</Text>
@@ -79,6 +84,10 @@ export default function AddPlaceScreen() {
 
   const [form, setForm] = useState<AddPlaceForm>(INITIAL_FORM);
   const [errors, setErrors] = useState<Set<FieldKey>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const neighbourhoodRef = useRef<TextInput>(null);
+  const addressRef = useRef<TextInput>(null);
 
   useFocusEffect(useCallback(() => {
     return () => { setForm(INITIAL_FORM); setErrors(new Set()); };
@@ -118,6 +127,8 @@ export default function AddPlaceScreen() {
   }
 
   async function handleSubmit() {
+    if (isSubmitting) return; // guard against double-tap → duplicate submissions
+
     const next = validate(form);
     if (next.size > 0) {
       setErrors(next);
@@ -125,6 +136,7 @@ export default function AddPlaceScreen() {
       return;
     }
 
+    setIsSubmitting(true);
     let lat: number | null = null;
     let lng: number | null = null;
     try {
@@ -153,11 +165,16 @@ export default function AddPlaceScreen() {
       status:            'pending',
       indoor_verified:   false,
     });
+    setIsSubmitting(false);
     if (error) {
-      Alert.alert('Something went wrong', 'Please try again.');
+      Alert.alert(
+        "Couldn't save venue",
+        error.message || 'Please check your connection and try again.'
+      );
       console.error('[AddPlace] Supabase error:', error.message);
       return;
     }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     showToast("Thanks! We'll verify this in person.");
     resetForm();
   }
@@ -183,6 +200,9 @@ export default function AddPlaceScreen() {
               placeholder="e.g., Common Man Coffee Roasters"
               placeholderTextColor="#ABABAB"
               maxLength={100}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => neighbourhoodRef.current?.focus()}
               style={[styles.input, errors.has('name') && styles.inputError]}
             />
           </View>
@@ -190,11 +210,15 @@ export default function AddPlaceScreen() {
           <View>
             <FieldLabel>Neighbourhood *</FieldLabel>
             <TextInput
+              ref={neighbourhoodRef}
               value={form.neighbourhood}
               onChangeText={t => setField('neighbourhood', t)}
               placeholder="e.g., Tiong Bahru"
               placeholderTextColor="#ABABAB"
               maxLength={60}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => addressRef.current?.focus()}
               style={[styles.input, errors.has('neighbourhood') && styles.inputError]}
             />
           </View>
@@ -205,11 +229,13 @@ export default function AddPlaceScreen() {
               <Text style={styles.optionalTag}>optional</Text>
             </View>
             <TextInput
+              ref={addressRef}
               value={form.address}
               onChangeText={t => setField('address', t)}
               placeholder="e.g., 78 Moh Guan Terrace, #01-20"
               placeholderTextColor="#ABABAB"
               maxLength={200}
+              returnKeyType="done"
               style={styles.input}
             />
           </View>
@@ -281,8 +307,22 @@ export default function AddPlaceScreen() {
             />
           </View>
 
-          <TouchableOpacity onPress={handleSubmit} style={styles.submitBtn} activeOpacity={0.85}>
-            <Text style={styles.submitBtnText}>Submit</Text>
+          <TouchableOpacity
+            onPress={handleSubmit}
+            style={[styles.submitBtn, isSubmitting && styles.submitBtnDisabled]}
+            activeOpacity={0.85}
+            disabled={isSubmitting}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: isSubmitting, busy: isSubmitting }}
+          >
+            {isSubmitting ? (
+              <View style={styles.submitBtnRow}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.submitBtnText}>Submitting…</Text>
+              </View>
+            ) : (
+              <Text style={styles.submitBtnText}>Submit</Text>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -327,6 +367,8 @@ const styles = StyleSheet.create({
   labelRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   optionalTag: { fontSize: 11, fontFamily: Font.regular, color: '#ABABAB' },
 
-  submitBtn:     { backgroundColor: '#0A0A0A', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  submitBtnText: { fontSize: 15, fontFamily: Font.semiBold, color: '#FFFFFF', letterSpacing: 0.2 },
+  submitBtn:         { backgroundColor: '#0A0A0A', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnRow:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  submitBtnText:     { fontSize: 15, fontFamily: Font.semiBold, color: '#FFFFFF', letterSpacing: 0.2 },
 });

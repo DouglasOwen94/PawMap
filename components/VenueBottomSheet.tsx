@@ -2,8 +2,10 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -23,7 +25,11 @@ import { Font } from '@/constants/fonts';
 import { supabase } from '@/lib/supabase';
 
 import { getDogSizeLabel, getSeatingLabel, getVerificationText, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
+import { Skeleton } from '@/components/Skeleton';
 import type { Venue, CommunityPhoto } from '@/types/venue';
+
+// Flat light-grey blurhash so photos fade in from grey, not white.
+const PHOTO_PLACEHOLDER = '00QvwN';
 
 type Props = {
   venue: Venue | null;
@@ -60,8 +66,11 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   const [reportNote, setReportNote]             = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportSubmitted, setReportSubmitted]   = useState(false);
+  const [reportError, setReportError]           = useState<string | null>(null);
 
   const [communityPhotos, setCommunityPhotos] = useState<CommunityPhoto[]>([]);
+  const [photosLoading, setPhotosLoading]     = useState(false);
+  const [photosError, setPhotosError]         = useState(false);
   const [uploading, setUploading]             = useState(false);
   const [previewIndex, setPreviewIndex]       = useState<number | null>(null);
   const [uploadError, setUploadError]         = useState<string | null>(null);
@@ -99,16 +108,27 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   useEffect(() => {
     if (venue) {
       sheetRef.current?.snapToIndex(0);
+      setPhotosLoading(true);
+      setPhotosError(false);
+      setCommunityPhotos([]);
       supabase
         .from('community_photos')
         .select('*')
         .eq('venue_id', venue.id)
         .eq('is_visible', true)
         .order('created_at', { ascending: false })
-        .then(({ data }) => { if (data) setCommunityPhotos(data as CommunityPhoto[]); });
+        .then(({ data, error }) => {
+          if (error || !data) {
+            setPhotosError(true);
+          } else {
+            setCommunityPhotos(data as CommunityPhoto[]);
+          }
+          setPhotosLoading(false);
+        });
     } else {
       sheetRef.current?.close();
       setCommunityPhotos([]);
+      setPhotosError(false);
     }
   }, [venue]);
 
@@ -120,6 +140,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
     setSelectedReason(null);
     setReportNote('');
     setReportSubmitted(false);
+    setReportError(null);
     setReportVisible(true);
     overlayOpacity.setValue(0);
     sheetTranslateY.setValue(400);
@@ -141,7 +162,13 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
     if (!venue) return;
     if (communityPhotos.length >= 10) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return;
+    if (!permission.granted) {
+      Alert.alert(
+        'Photo access needed',
+        'To share a photo, allow PawMap to access your photos in Settings.'
+      );
+      return;
+    }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -207,13 +234,17 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   function openGoogleMaps() {
     if (!venue) return;
     const query = encodeURIComponent(`${venue.name}, ${venue.neighbourhood}, Singapore`);
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`).catch(() =>
+      Alert.alert("Couldn't open Google Maps", 'Make sure the app or a browser is available on your device.')
+    );
   }
 
   function openWaze() {
     if (!venue) return;
     const query = encodeURIComponent(`${venue.name}, ${venue.neighbourhood}, Singapore`);
-    Linking.openURL(`https://waze.com/ul?q=${query}&navigate=yes`);
+    Linking.openURL(`https://waze.com/ul?q=${query}&navigate=yes`).catch(() =>
+      Alert.alert("Couldn't open Waze", 'Waze may not be installed on your device.')
+    );
   }
 
   function openReview() {
@@ -250,13 +281,21 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
   async function submitReport() {
     if (!selectedReason || !venue) return;
     setReportSubmitting(true);
-    await supabase.from('change_reports').insert({
+    setReportError(null);
+    const { error } = await supabase.from('change_reports').insert({
       venue_id: venue.id,
       venue_name: venue.name,
       reason: selectedReason,
       note: reportNote.trim() || null,
     });
     setReportSubmitting(false);
+    if (error) {
+      // Never show a false "Thanks!" — keep the form open so the report isn't lost.
+      setReportError("Couldn't send report — please try again.");
+      console.error('[Report] Supabase error:', error.message);
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     setReportSubmitted(true);
     setTimeout(closeReport, 2000);
   }
@@ -295,6 +334,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                             style={StyleSheet.absoluteFillObject}
                             contentFit="cover"
                             transition={400}
+                            placeholder={{ blurhash: PHOTO_PLACEHOLDER }}
                           />
                           {photo.label && (
                             <View style={styles.photoLabel}>
@@ -316,6 +356,9 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                       onPress={() => onToggleSave(venue)}
                       activeOpacity={0.7}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={isSaved ? 'Remove from saved' : 'Save venue'}
+                      accessibilityState={{ selected: isSaved }}
                     >
                       <Ionicons
                         name={isSaved ? 'heart' : 'heart-outline'}
@@ -377,18 +420,47 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
                     {communityPhotos.length < 10 && (
                       <View style={styles.addPhotoBtnWrapper}>
-                        <TouchableOpacity style={styles.addPhotoBtn} onPress={handleAddPhoto} activeOpacity={0.7} disabled={uploading}>
-                          <Text style={styles.addPhotoBtnText}>{uploading ? '…' : '+'}</Text>
+                        <TouchableOpacity
+                          style={styles.addPhotoBtn}
+                          onPress={handleAddPhoto}
+                          activeOpacity={0.7}
+                          disabled={uploading}
+                          accessibilityRole="button"
+                          accessibilityLabel="Add a photo"
+                          accessibilityState={{ busy: uploading, disabled: uploading }}
+                        >
+                          {uploading
+                            ? <ActivityIndicator size="small" color="#6B6B6B" />
+                            : <Text style={styles.addPhotoBtnText}>+</Text>}
                         </TouchableOpacity>
                         <Text style={styles.addPhotoHint}>Love this place?{'\n'}Share a photo.</Text>
                       </View>
                     )}
-                    {communityPhotos.map((photo, i) => (
-                      <TouchableOpacity key={photo.id} onPress={() => setPreviewIndex(i)} activeOpacity={0.85}>
-                        <Image source={{ uri: photo.photo_url }} style={styles.communityThumb} contentFit="cover" transition={300} />
-                      </TouchableOpacity>
-                    ))}
+                    {photosLoading
+                      ? [0, 1, 2].map(i => (
+                          <Skeleton key={i} width={80} height={80} radius={8} />
+                        ))
+                      : communityPhotos.map((photo, i) => (
+                          <TouchableOpacity
+                            key={photo.id}
+                            onPress={() => setPreviewIndex(i)}
+                            activeOpacity={0.85}
+                            accessibilityRole="imagebutton"
+                            accessibilityLabel="View community photo"
+                          >
+                            <Image
+                              source={{ uri: photo.photo_url }}
+                              style={styles.communityThumb}
+                              contentFit="cover"
+                              transition={300}
+                              placeholder={{ blurhash: PHOTO_PLACEHOLDER }}
+                            />
+                          </TouchableOpacity>
+                        ))}
                   </ScrollView>
+                  {photosError && (
+                    <Text style={styles.uploadErrorText}>Couldn&apos;t load photos.</Text>
+                  )}
                   {uploadError && (
                     <Text style={styles.uploadErrorText}>{uploadError}</Text>
                   )}
@@ -400,7 +472,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 <View style={styles.divider} />
 
                 {/* — Tags — */}
-                <Text style={styles.tagsLabel}>What's here</Text>
+                <Text style={styles.tagsLabel}>What&apos;s here</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
                   {/* Warning tags first */}
                   {venue.leash_free === false && !hasCarrierTag(venue.tags ?? []) && (
@@ -453,11 +525,23 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
             keyExtractor={item => String(item.id)}
             renderItem={({ item }) => (
               <View style={{ width: SCREEN_W, alignItems: 'center', justifyContent: 'center' }}>
-                <Image source={{ uri: item.photo_url }} style={styles.previewImage} contentFit="cover" />
+                <Image
+                  source={{ uri: item.photo_url }}
+                  style={styles.previewImage}
+                  contentFit="cover"
+                  transition={200}
+                  placeholder={{ blurhash: PHOTO_PLACEHOLDER }}
+                />
               </View>
             )}
           />
-          <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewIndex(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity
+            style={styles.previewClose}
+            onPress={() => setPreviewIndex(null)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Close photo"
+          >
             <Ionicons name="close" size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
@@ -516,13 +600,18 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
               {reportSubmitted ? (
                 <View style={styles.successContent}>
                   <Text style={styles.successIcon}>✓</Text>
-                  <Text style={styles.successText}>Thanks! We'll check it out.</Text>
+                  <Text style={styles.successText}>Thanks! We&apos;ll check it out.</Text>
                 </View>
               ) : (
                 <>
                   <View style={styles.reportHeader}>
                     <Text style={styles.reportTitle}>Report a Change</Text>
-                    <TouchableOpacity onPress={closeReport} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <TouchableOpacity
+                      onPress={closeReport}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Close"
+                    >
                       <Ionicons name="close" size={20} color="#6B6B6B" />
                     </TouchableOpacity>
                   </View>
@@ -555,15 +644,28 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                     maxLength={300}
                   />
 
+                  {reportError && (
+                    <Text style={styles.reportErrorText}>{reportError}</Text>
+                  )}
+
                   <TouchableOpacity
                     style={[styles.sendButton, !selectedReason && styles.sendButtonDisabled]}
                     onPress={submitReport}
                     disabled={!selectedReason || reportSubmitting}
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !selectedReason || reportSubmitting, busy: reportSubmitting }}
                   >
-                    <Text style={[styles.sendButtonText, !selectedReason && styles.sendButtonTextDisabled]}>
-                      {reportSubmitting ? 'Sending…' : 'Send Report'}
-                    </Text>
+                    {reportSubmitting ? (
+                      <View style={styles.sendButtonRow}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={styles.sendButtonText}>Sending…</Text>
+                      </View>
+                    ) : (
+                      <Text style={[styles.sendButtonText, !selectedReason && styles.sendButtonTextDisabled]}>
+                        Send Report
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 </>
               )}
@@ -646,9 +748,11 @@ const styles = StyleSheet.create({
     minHeight: 60, textAlignVertical: 'top',
   },
   sendButton:          { backgroundColor: '#0A0A0A', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  sendButtonRow:       { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sendButtonDisabled:  { backgroundColor: '#F7F7F5', borderWidth: 1, borderColor: '#E8E8E4' },
   sendButtonText:      { fontSize: 15, fontFamily: Font.semiBold, color: '#FFFFFF' },
   sendButtonTextDisabled: { color: '#ABABAB' },
+  reportErrorText:     { fontSize: 13, fontFamily: Font.medium, color: '#EF4444', textAlign: 'center', marginBottom: 8 },
   successContent: { paddingVertical: 32, alignItems: 'center', gap: 10 },
   successIcon:    { fontSize: 32, color: '#22C55E' },
   successText:    { fontSize: 16, fontFamily: Font.semiBold, color: '#0A0A0A' },

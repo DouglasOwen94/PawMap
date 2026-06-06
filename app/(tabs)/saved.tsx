@@ -1,14 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useCallback, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Font } from '@/constants/fonts';
 import { supabase } from '@/lib/supabase';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
 import { getSeatingLabel, isIndoorVerified } from '@/utils/venue';
+import { SkeletonVenueCard } from '@/components/Skeleton';
 import type { Venue } from '@/types/venue';
+
+// Flat light-grey blurhash so cover photos fade in from grey, not white.
+const PHOTO_PLACEHOLDER = '00QvwN';
 
 type CardProps = {
   venue: Venue;
@@ -27,12 +31,15 @@ function SavedVenueCard({ venue, onUnsave, onPress }: CardProps) {
           style={StyleSheet.absoluteFillObject}
           contentFit="cover"
           transition={300}
+          placeholder={{ blurhash: PHOTO_PLACEHOLDER }}
         />
         <TouchableOpacity
           style={styles.heartButton}
           onPress={() => onUnsave(venue)}
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${venue.name} from saved`}
         >
           <Ionicons name="heart" size={20} color="#EF4444" />
         </TouchableOpacity>
@@ -66,21 +73,74 @@ function EmptyState() {
   );
 }
 
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View style={styles.emptyState}>
+      <Ionicons name="cloud-offline-outline" size={48} color="#ABABAB" />
+      <Text style={styles.emptyTitle}>Couldn&apos;t load your places</Text>
+      <Text style={styles.emptySubtitle}>Check your connection and try again.</Text>
+      <TouchableOpacity
+        style={styles.retryBtn}
+        onPress={onRetry}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Retry loading saved places"
+      >
+        <Text style={styles.retryBtnText}>Try again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function SkeletonList() {
+  return (
+    <View style={styles.listContent}>
+      {[0, 1, 2].map(i => (
+        <View key={i} style={i > 0 && styles.separator}>
+          <SkeletonVenueCard />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function SavedScreen() {
   const { isSaved, toggleSave } = useSavedVenues();
   const [allVenues, setAllVenues] = useState<Venue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchSaved = useCallback(async () => {
+    const { data, error: fetchErr } = await supabase
+      .from('venues')
+      .select('*')
+      .eq('status', 'live');
+    if (fetchErr || !data) {
+      setError(true);
+    } else {
+      setError(false);
+      setAllVenues(data as Venue[]);
+    }
+    setLoading(false);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      supabase
-        .from('venues')
-        .select('*')
-        .eq('status', 'live')
-        .then(({ data }) => {
-          if (data) setAllVenues(data as Venue[]);
-        });
-    }, [])
+      fetchSaved();
+    }, [fetchSaved])
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchSaved();
+    setRefreshing(false);
+  }, [fetchSaved]);
+
+  function handleRetry() {
+    setLoading(true);
+    fetchSaved();
+  }
 
   const savedVenues = allVenues.filter(v => isSaved(v.id));
 
@@ -93,24 +153,35 @@ export default function SavedScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Saved</Text>
       </View>
-      <FlatList
-        style={styles.list}
-        data={savedVenues}
-        keyExtractor={item => String(item.id)}
-        renderItem={({ item }) => (
-          <SavedVenueCard
-            venue={item}
-            onUnsave={toggleSave}
-            onPress={handleCardPress}
-          />
-        )}
-        ListEmptyComponent={<EmptyState />}
-        contentContainerStyle={[
-          styles.listContent,
-          savedVenues.length === 0 && styles.listContentEmpty,
-        ]}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
+      {loading ? (
+        <SkeletonList />
+      ) : error && allVenues.length === 0 ? (
+        <View style={[styles.listContent, styles.listContentEmpty]}>
+          <ErrorState onRetry={handleRetry} />
+        </View>
+      ) : (
+        <FlatList
+          style={styles.list}
+          data={savedVenues}
+          keyExtractor={item => String(item.id)}
+          renderItem={({ item }) => (
+            <SavedVenueCard
+              venue={item}
+              onUnsave={toggleSave}
+              onPress={handleCardPress}
+            />
+          )}
+          ListEmptyComponent={<EmptyState />}
+          contentContainerStyle={[
+            styles.listContent,
+            savedVenues.length === 0 && styles.listContentEmpty,
+          ]}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6B6B6B" />
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -222,5 +293,17 @@ const styles = StyleSheet.create({
     fontFamily: Font.regular,
     color: '#6B6B6B',
     textAlign: 'center',
+  },
+  retryBtn: {
+    marginTop: 4,
+    backgroundColor: '#0A0A0A',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  retryBtnText: {
+    fontSize: 14,
+    fontFamily: Font.semiBold,
+    color: '#FFFFFF',
   },
 });
