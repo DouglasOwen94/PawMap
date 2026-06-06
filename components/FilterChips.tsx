@@ -45,6 +45,15 @@ export function FilterChips({ active, onSelect }: Props) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
       >
+        {active.length >= 2 && (
+          <TouchableOpacity
+            onPress={() => onSelect('All')}
+            style={styles.clearChip}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.clearLabel}>✕ Clear</Text>
+          </TouchableOpacity>
+        )}
         {FILTERS.map(({ key, label }) => {
           const isActive = key === 'All' ? active.length === 0 : active.includes(key);
           return (
@@ -91,6 +100,24 @@ const styles = StyleSheet.create({
   chipActive: {
     backgroundColor: '#0A0A0A',
     borderColor: '#0A0A0A',
+  },
+  clearChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 100,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.2)',
+    shadowColor: '#0A0A0A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  clearLabel: {
+    fontSize: 14,
+    fontFamily: Font.medium,
+    color: '#EF4444',
   },
   label: {
     fontSize: 14,

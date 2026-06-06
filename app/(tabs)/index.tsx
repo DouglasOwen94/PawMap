@@ -8,6 +8,7 @@ import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
 import { VenueBottomSheet } from '@/components/VenueBottomSheet';
 import { supabase } from '@/lib/supabase';
+import { fetchPlaceRating } from '@/lib/places';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
 import { buildMarkerPositions, isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
@@ -67,14 +68,20 @@ export default function MapScreen() {
   const { venueId } = useLocalSearchParams<{ venueId?: string }>();
   const handledVenueId = useRef<string | null>(null);
 
-  function fetchVenues() {
-    supabase
-      .from('venues')
-      .select('*')
-      .eq('status', 'live')
-      .then(({ data, error }) => {
-        if (!error && data) setVenues(data as Venue[]);
-      });
+  async function fetchVenues() {
+    const { data, error } = await supabase.from('venues').select('*').eq('status', 'live');
+    if (error || !data) return;
+    const venues = data as Venue[];
+    const results = await Promise.allSettled(
+      venues.map(v => v.google_place_id ? fetchPlaceRating(v.google_place_id) : Promise.resolve(null))
+    );
+    setVenues(
+      venues.map((v, i) => {
+        const r = results[i];
+        const rating = r.status === 'fulfilled' && r.value !== null ? r.value : undefined;
+        return rating !== undefined ? { ...v, rating } : v;
+      })
+    );
   }
 
   useEffect(() => {

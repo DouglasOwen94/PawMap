@@ -227,6 +227,7 @@
       <div style="padding:10px 6px 14px;border-top:1px solid rgba(255,255,255,0.07);">
         <button onclick="openCsvModal()" class="sidebar-action-btn">↑ Import CSV</button>
         <button onclick="exportCsv()" class="sidebar-action-btn">↓ Export CSV</button>
+        <button onclick="fillMissingPlaceIds()" id="fill-place-ids-btn" class="sidebar-action-btn">⊕ Find Place IDs</button>
         <button id="dark-mode-btn" onclick="toggleDarkMode()" class="sidebar-action-btn">☽ Dark Mode</button>
         <button onclick="handleLogout()" class="sidebar-action-btn">Sign out</button>
       </div>
@@ -285,6 +286,20 @@
     <!-- Overlay -->
     <div id="overlay" onclick="closePanel()"
       style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.20);z-index:40;">
+    </div>
+  </div>
+
+  <!-- Place IDs Modal -->
+  <div id="place-ids-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:90%;max-width:500px;max-height:75vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.12);">
+      <div style="padding:24px 24px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-shrink:0;">
+        <div>
+          <h2 style="font-weight:700;font-size:18px;color:var(--text);margin-bottom:3px;">Find Place IDs</h2>
+          <p id="place-ids-status" style="font-size:13px;color:var(--text2);"></p>
+        </div>
+        <button id="place-ids-close-btn" onclick="closePlaceIdsModal()" style="display:none;width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+      </div>
+      <div id="place-ids-log" style="flex:1;overflow-y:auto;padding:0 24px 24px;display:flex;flex-direction:column;gap:6px;"></div>
     </div>
   </div>
 
@@ -1624,6 +1639,65 @@
     closeCsvModal(); showToast(`✓ ${valid.length} venues imported`);
   }
 
+  // ── Find Place IDs ────────────────────────────────────────────
+  async function fillMissingPlaceIds() {
+    const missing = venues.filter(v => !v.google_place_id);
+    if (missing.length === 0) { showToast('All venues already have a Place ID ✓'); return; }
+
+    const modal = document.getElementById('place-ids-modal');
+    const log   = document.getElementById('place-ids-log');
+    const status = document.getElementById('place-ids-status');
+    const closeBtn = document.getElementById('place-ids-close-btn');
+    log.innerHTML = '';
+    closeBtn.style.display = 'none';
+    status.textContent = `Searching ${missing.length} venue${missing.length !== 1 ? 's' : ''}…`;
+    modal.style.display = 'flex';
+
+    const btn = document.getElementById('fill-place-ids-btn');
+    if (btn) btn.style.opacity = '0.4';
+
+    const service = new google.maps.places.PlacesService(document.createElement('div'));
+    let found = 0, notFound = 0;
+
+    for (let i = 0; i < missing.length; i++) {
+      const v = missing[i];
+      status.textContent = `${i + 1} / ${missing.length} — searching…`;
+      await new Promise(resolve => {
+        const req = {
+          query: [v.name, v.neighbourhood, 'Singapore'].filter(Boolean).join(' '),
+          fields: ['place_id', 'name'],
+        };
+        if (v.lat && v.lng) req.locationBias = { lat: parseFloat(v.lat), lng: parseFloat(v.lng) };
+        service.findPlaceFromQuery(req, async (results, s) => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);font-size:13px;';
+          if (s === google.maps.places.PlacesServiceStatus.OK && results && results[0]) {
+            const placeId = results[0].place_id;
+            await db.from('venues').update({ google_place_id: placeId }).eq('id', v.id);
+            patchVenue(v.id, { google_place_id: placeId });
+            row.innerHTML = `<span style="color:var(--green);font-weight:700;flex-shrink:0;">✓</span><div><span style="font-weight:600;color:var(--text);">${h(v.name)}</span><br><span style="font-size:11px;color:var(--text3);">${h(placeId)}</span></div>`;
+            found++;
+          } else {
+            row.innerHTML = `<span style="color:var(--text3);font-weight:700;flex-shrink:0;">–</span><div><span style="font-weight:600;color:var(--text2);">${h(v.name)}</span><br><span style="font-size:11px;color:var(--text3);">No match — add manually</span></div>`;
+            notFound++;
+          }
+          log.appendChild(row);
+          log.scrollTop = log.scrollHeight;
+          resolve();
+        });
+      });
+    }
+
+    status.textContent = `Done — ${found} found, ${notFound} not matched`;
+    closeBtn.style.display = 'flex';
+    if (btn) btn.style.opacity = '';
+    if (found > 0) { renderVenueList(); }
+  }
+
+  function closePlaceIdsModal() {
+    document.getElementById('place-ids-modal').style.display = 'none';
+  }
+
   // ── Helpers ───────────────────────────────────────────────────
   function h(str) { return String(str??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function a(str) { return String(str??'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -1651,6 +1725,6 @@
   })();
 </script>
 
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAybXD9Yk-ToYBWMXzHFZ_P5X6WSWLhezA&callback=initMap"></script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAybXD9Yk-ToYBWMXzHFZ_P5X6WSWLhezA&libraries=places&callback=initMap"></script>
 </body>
 </html>
