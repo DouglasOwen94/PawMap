@@ -49,7 +49,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
-          <StatusBar style="auto" />
+          <StatusBar style="dark" backgroundColor="#F7F7F5" translucent={false} />
           <SavedToast />
         </ThemeProvider>
       </SavedVenuesProvider>
