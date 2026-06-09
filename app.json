@@ -3,6 +3,7 @@
     "name": "PawMap",
     "slug": "PawMap",
     "version": "1.0.0",
+    "privacy": "public",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pawmap",

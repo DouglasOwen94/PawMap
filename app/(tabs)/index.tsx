@@ -71,7 +71,12 @@ export default function MapScreen() {
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
-  const [currentRegion, setCurrentRegion] = useState(SINGAPORE_REGION);
+  const filteredVenues = useMemo(
+    () => venues.filter(v => v.lat != null && v.lng != null && venueMatchesFilters(v, activeFilters)),
+    [venues, activeFilters]
+  );
+  const noResults = !loading && activeFilters.length > 0 && venues.length > 0 && filteredVenues.length === 0;
+  const currentRegionRef = useRef(SINGAPORE_REGION);
 
   const { venueId } = useLocalSearchParams<{ venueId?: string }>();
   const handledVenueId = useRef<string | null>(null);
@@ -162,30 +167,45 @@ export default function MapScreen() {
       if (filter === 'All') return [];
       return prev.includes(filter) ? prev.filter(f => f !== filter) : [...prev, filter];
     });
-    setTracksViewChanges(true);
-    setTimeout(() => setTracksViewChanges(false), 500);
   }
+
+  // Android freezes each pin's bitmap once tracksViewChanges flips to false (perf).
+  // When the filter set changes, the map layer won't repaint which pins are shown
+  // until the user pans — so briefly re-enable tracking to force an immediate redraw.
+  // Skip the initial mount so we don't cut short the 3 s image-loading grace period
+  // set up in the focus effect (which would risk blank pins on first load).
+  const skipInitialFilterRedraw = useRef(true);
+  useEffect(() => {
+    if (skipInitialFilterRedraw.current) {
+      skipInitialFilterRedraw.current = false;
+      return;
+    }
+    setTracksViewChanges(true);
+    const timer = setTimeout(() => setTracksViewChanges(false), 500);
+    return () => clearTimeout(timer);
+  }, [activeFilters]);
 
   function handleMarkerPress(venue: Venue) {
     setSelectedVenue(venue);
-    setTracksViewChanges(true);
-    setTimeout(() => setTracksViewChanges(false), 600);
     if (venue.lat == null || venue.lng == null) return;
     // Centre pin in the visible map area above the 65% bottom sheet
-    const offset = currentRegion.latitudeDelta * 0.325;
+    const region = currentRegionRef.current;
+    const offset = region.latitudeDelta * 0.325;
     mapRef.current?.animateToRegion(
       {
         latitude: venue.lat - offset,
         longitude: venue.lng,
-        latitudeDelta: currentRegion.latitudeDelta,
-        longitudeDelta: currentRegion.longitudeDelta,
+        latitudeDelta: region.latitudeDelta,
+        longitudeDelta: region.longitudeDelta,
       },
       350
     );
   }
 
   function handleSheetClose() {
+    setTracksViewChanges(true);
     setSelectedVenue(null);
+    setTimeout(() => setTracksViewChanges(false), 300);
   }
 
   async function checkLocationPermission() {
@@ -243,20 +263,17 @@ export default function MapScreen() {
         showsMyLocationButton={false}
         showsCompass={false}
         showsPointsOfInterest={false}
+        moveOnMarkerPress={false}
         customMapStyle={MAP_STYLE}
         onRegionChangeComplete={(region) => {
-          setCurrentRegion(region);
-          setTracksViewChanges(true);
-          setTimeout(() => setTracksViewChanges(false), 600);
+          currentRegionRef.current = region;
         }}
       >
-        {venues
-          .filter(venue => venue.lat != null && venue.lng != null && venueMatchesFilters(venue, activeFilters))
-          .map(venue => (
+        {filteredVenues.map(venue => (
             <Marker
               key={venue.id}
               coordinate={markerPositions.get(venue.id) ?? { latitude: venue.lat!, longitude: venue.lng! }}
-              tracksViewChanges={tracksViewChanges}
+              tracksViewChanges={tracksViewChanges || selectedVenue?.id === venue.id}
               onPress={() => handleMarkerPress(venue)}
               anchor={{ x: 0.5, y: 1 }}
               style={{ backgroundColor: 'transparent' }}
@@ -288,6 +305,22 @@ export default function MapScreen() {
             accessibilityLabel="Retry loading venues"
           >
             <Text style={styles.errorBannerRetry}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {noResults && (
+        <View style={[styles.noResultsCard, { top: insets.top + 60 }]} pointerEvents="box-none">
+          <Text style={styles.noResultsTitle}>No venues match your filters</Text>
+          <Text style={styles.noResultsSub}>Try removing a filter to see more spots</Text>
+          <TouchableOpacity
+            onPress={() => setActiveFilters([])}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Clear all filters"
+            style={styles.noResultsBtn}
+          >
+            <Text style={styles.noResultsBtnText}>Clear filters</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -361,6 +394,46 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     paddingHorizontal: 10,
     paddingVertical: 4,
+  },
+  noResultsCard: {
+    position: 'absolute',
+    alignSelf: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E8E8E4',
+    shadowColor: '#0A0A0A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    gap: 4,
+  },
+  noResultsTitle: {
+    fontSize: 15,
+    fontFamily: Font.semiBold,
+    color: '#0A0A0A',
+  },
+  noResultsSub: {
+    fontSize: 13,
+    fontFamily: Font.regular,
+    color: '#6B6B6B',
+    textAlign: 'center',
+  },
+  noResultsBtn: {
+    marginTop: 8,
+    backgroundColor: '#0A0A0A',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 100,
+  },
+  noResultsBtnText: {
+    fontSize: 13,
+    fontFamily: Font.semiBold,
+    color: '#FFFFFF',
   },
 });
 

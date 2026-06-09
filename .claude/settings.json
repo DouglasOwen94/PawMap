@@ -24,7 +24,8 @@
       "PowerShell($url = \"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.106.1/dist/umd/supabase.min.js\"; $bytes = \\(Invoke-WebRequest -Uri $url -UseBasicParsing\\).Content; $hash = [System.Security.Cryptography.SHA384]::Create\\(\\).ComputeHash\\($bytes\\); \"sha384-\" + [Convert]::ToBase64String\\($hash\\))",
       "PowerShell($url = \"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.106.1/dist/umd/supabase.min.js\"; $wc = New-Object System.Net.WebClient; $bytes = $wc.DownloadData\\($url\\); $sha384 = [System.Security.Cryptography.SHA384]::Create\\(\\); $hash = $sha384.ComputeHash\\($bytes\\); \"sha384-\" + [Convert]::ToBase64String\\($hash\\))",
       "PowerShell(npm run lint)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "WebSearch"
     ],
     "additionalDirectories": [
       "c:\\Users\\Douglas Lee\\Documents\\PawMap",

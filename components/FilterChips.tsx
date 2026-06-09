@@ -26,6 +26,7 @@ type Props = {
 
 export function FilterChips({ active, onSelect }: Props) {
   const translateY = useSharedValue(80);
+  const clearProgress = useSharedValue(0);
 
   useEffect(() => {
     translateY.value = withTiming(0, {
@@ -34,28 +35,45 @@ export function FilterChips({ active, onSelect }: Props) {
     });
   }, [translateY]);
 
+  const showClear = active.length >= 2;
+
+  useEffect(() => {
+    clearProgress.value = withTiming(showClear ? 1 : 0, {
+      duration: 200,
+      easing: Easing.bezier(0.32, 0.72, 0, 1),
+    });
+  }, [showClear]);
+
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
 
+  // Grows the slot above the chip row from 0 → 28px; chips never move.
+  const clearSlotStyle = useAnimatedStyle(() => ({
+    height: clearProgress.value * 28,
+    opacity: clearProgress.value,
+    overflow: 'hidden',
+  }));
+
   return (
     <Animated.View style={[styles.wrapper, animatedStyle]}>
+      <Animated.View style={clearSlotStyle} pointerEvents={showClear ? 'auto' : 'none'}>
+        <TouchableOpacity
+          onPress={() => onSelect('All')}
+          style={styles.clearChip}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Clear all filters"
+        >
+          <Text style={styles.clearLabel}>✕ Clear all</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
       >
-        {active.length >= 2 && (
-          <TouchableOpacity
-            onPress={() => onSelect('All')}
-            style={styles.clearChip}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel="Clear all filters"
-          >
-            <Text style={styles.clearLabel}>✕ Clear</Text>
-          </TouchableOpacity>
-        )}
         {FILTERS.map(({ key, label }) => {
           const isActive = key === 'All' ? active.length === 0 : active.includes(key);
           return (
@@ -87,7 +105,8 @@ const styles = StyleSheet.create({
   row: {
     paddingHorizontal: 16,
     paddingVertical: 6,
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   chip: {
     paddingVertical: 8,
@@ -101,26 +120,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    marginRight: 8,
   },
   chipActive: {
     backgroundColor: '#0A0A0A',
     borderColor: '#0A0A0A',
   },
   clearChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+    marginLeft: 16,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
     borderRadius: 100,
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
     borderColor: 'rgba(239,68,68,0.2)',
-    shadowColor: '#0A0A0A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   clearLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: Font.medium,
     color: '#EF4444',
   },
