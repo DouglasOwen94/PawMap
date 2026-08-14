@@ -1,6 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, BackHandler, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Imported under the react-native-maps name on purpose: metro.config.js
 // swaps this for @teovilla/react-native-web-maps when bundling for web, and
@@ -82,6 +84,8 @@ export default function MapScreen() {
   const [loadError, setLoadError] = useState(false);
   const markerPositions = useMemo(() => buildMarkerPositions(venues), [venues]);
   const [showUserLocation, setShowUserLocation] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [locatingUser, setLocatingUser] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const filteredVenues = useMemo(
@@ -229,16 +233,22 @@ export default function MapScreen() {
     const moveTo = (lat: number, lng: number) =>
       mapRef.current?.animateCamera({ center: { latitude: lat, longitude: lng }, zoom: 15 }, { duration: 800 });
 
-    // Use cached position instantly if available
-    const last = await Location.getLastKnownPositionAsync();
-    if (last) {
-      moveTo(last.coords.latitude, last.coords.longitude);
-      return;
-    }
+    setLocatingUser(true);
+    try {
+      // Use cached position instantly if available
+      const last = await Location.getLastKnownPositionAsync();
+      if (last) {
+        moveTo(last.coords.latitude, last.coords.longitude);
+        return;
+      }
 
-    // No cache — wait for a fresh fix
-    const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    moveTo(fresh.coords.latitude, fresh.coords.longitude);
+      // No cache — a fresh GPS fix is what's slow on some Android browsers,
+      // hence the "finding your location" pill this is guarding.
+      const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      moveTo(fresh.coords.latitude, fresh.coords.longitude);
+    } finally {
+      setLocatingUser(false);
+    }
   }
 
   return (
@@ -255,6 +265,7 @@ export default function MapScreen() {
         moveOnMarkerPress={false}
         customMapStyle={MAP_STYLE}
         googleMapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_KEY}
+        onMapReady={() => setMapReady(true)}
         onPress={handleMapPress}
         options={{
           zoomControl: false,
@@ -291,10 +302,22 @@ export default function MapScreen() {
         }
       </WebMapView>
 
+      {/* Google's script + tile load is the slow, unavoidable part of a
+          fresh page load on web — this covers that instead of leaving a
+          blank white rect where the map will be. */}
+      {!mapReady && <MapSkeleton />}
+
       {loading && venues.length === 0 && !loadError && (
         <View style={[styles.statusPill, { top: insets.top + 12 }]} pointerEvents="none">
           <ActivityIndicator size="small" color="#6B6B6B" />
           <Text style={styles.statusPillText}>Loading venues…</Text>
+        </View>
+      )}
+
+      {locatingUser && (
+        <View style={[styles.statusPill, { top: insets.top + (loading && venues.length === 0 ? 56 : 12) }]} pointerEvents="none">
+          <ActivityIndicator size="small" color="#6B6B6B" />
+          <Text style={styles.statusPillText}>Finding your location…</Text>
         </View>
       )}
 
@@ -340,9 +363,45 @@ export default function MapScreen() {
   );
 }
 
+/** Covers the map area until Google's script + tiles finish loading. */
+function MapSkeleton() {
+  const pulse = useSharedValue(0.4);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, [pulse]);
+
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
+  return (
+    <View style={styles.mapSkeleton} pointerEvents="none">
+      <Animated.View style={pulseStyle}>
+        <Ionicons name="paw" size={40} color="#ABABAB" />
+      </Animated.View>
+      <Text style={styles.mapSkeletonText}>Loading map…</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  mapSkeleton: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#F7F7F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  mapSkeletonText: {
+    fontSize: 13,
+    fontFamily: Font.medium,
+    color: '#ABABAB',
   },
   statusPill: {
     position: 'absolute',
