@@ -1,0 +1,42 @@
+diff --git a/node_modules/@gorhom/bottom-sheet/lib/commonjs/components/bottomSheetDraggableView/BottomSheetDraggableView.js b/node_modules/@gorhom/bottom-sheet/lib/commonjs/components/bottomSheetDraggableView/BottomSheetDraggableView.js
+index f3d8f55..aebbb6b 100644
+--- a/node_modules/@gorhom/bottom-sheet/lib/commonjs/components/bottomSheetDraggableView/BottomSheetDraggableView.js
++++ b/node_modules/@gorhom/bottom-sheet/lib/commonjs/components/bottomSheetDraggableView/BottomSheetDraggableView.js
+@@ -77,6 +77,16 @@ const BottomSheetDraggableViewComponent = ({
+   //#endregion
+ 
+   return /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNativeGestureHandler.GestureDetector, {
++    // Web only. gesture-handler sets `touch-action: none` on the detector's
++    // view while its handler is enabled, and `none` on an ancestor disables
++    // *all* browser-native panning inside it — so horizontal strips (photo
++    // carousels, tag rows) cannot scroll while the sheet is collapsed. They
++    // start working once the sheet is fully expanded only because gesture-
++    // handler restores the default touch-action when it disables this
++    // gesture. `pan-x` narrows that to just the horizontal axis: the browser
++    // keeps handling sideways scrolling, while vertical drags still fall
++    // through to this pan gesture so the sheet remains draggable.
++    touchAction: 'pan-x',
+     gesture: draggableGesture,
+     children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_gesture.BottomSheetDraggableContext.Provider, {
+       value: draggableGesture,
+diff --git a/node_modules/@gorhom/bottom-sheet/lib/module/components/bottomSheetDraggableView/BottomSheetDraggableView.js b/node_modules/@gorhom/bottom-sheet/lib/module/components/bottomSheetDraggableView/BottomSheetDraggableView.js
+index 9efadd2..2eb068b 100644
+--- a/node_modules/@gorhom/bottom-sheet/lib/module/components/bottomSheetDraggableView/BottomSheetDraggableView.js
++++ b/node_modules/@gorhom/bottom-sheet/lib/module/components/bottomSheetDraggableView/BottomSheetDraggableView.js
+@@ -71,6 +71,16 @@ const BottomSheetDraggableViewComponent = ({
+   //#endregion
+ 
+   return /*#__PURE__*/_jsx(GestureDetector, {
++    // Web only. gesture-handler sets `touch-action: none` on the detector's
++    // view while its handler is enabled, and `none` on an ancestor disables
++    // *all* browser-native panning inside it — so horizontal strips (photo
++    // carousels, tag rows) cannot scroll while the sheet is collapsed. They
++    // start working once the sheet is fully expanded only because gesture-
++    // handler restores the default touch-action when it disables this
++    // gesture. `pan-x` narrows that to just the horizontal axis: the browser
++    // keeps handling sideways scrolling, while vertical drags still fall
++    // through to this pan gesture so the sheet remains draggable.
++    touchAction: 'pan-x',
+     gesture: draggableGesture,
+     children: /*#__PURE__*/_jsx(BottomSheetDraggableContext.Provider, {
+       value: draggableGesture,

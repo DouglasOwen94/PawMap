@@ -1,8 +1,11 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, BackHandler, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, BackHandler, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+// Imported under the react-native-maps name on purpose: metro.config.js
+// swaps this for @teovilla/react-native-web-maps when bundling for web, and
+// react-native-maps ships the accurate types for the API both implement.
+import MapView, { Marker, type MapViewProps } from 'react-native-maps';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { Font } from '@/constants/fonts';
@@ -10,7 +13,6 @@ import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
 import { VenueBottomSheet } from '@/components/VenueBottomSheet';
 import { supabase } from '@/lib/supabase';
-import { fetchPlaceDetails } from '@/lib/places';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
 import { buildMarkerPositions, isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
@@ -21,6 +23,18 @@ const SINGAPORE_REGION = {
   latitudeDelta: 0.12,
   longitudeDelta: 0.12,
 };
+
+// The web shim accepts two props react-native-maps has no concept of. They
+// can't be declared by module augmentation because react-native-maps exports
+// MapViewProps as a type alias rather than an interface, so declare them here
+// instead — this file only ever renders against the web shim.
+const WebMapView = MapView as unknown as React.ComponentType<
+  MapViewProps & {
+    ref?: React.Ref<MapView>;
+    googleMapsApiKey?: string;
+    options?: Record<string, unknown>;
+  }
+>;
 
 function venueMatchesFilter(venue: Venue, filter: FilterKey): boolean {
   switch (filter) {
@@ -68,7 +82,6 @@ export default function MapScreen() {
   const [loadError, setLoadError] = useState(false);
   const markerPositions = useMemo(() => buildMarkerPositions(venues), [venues]);
   const [showUserLocation, setShowUserLocation] = useState(false);
-  const [tracksViewChanges, setTracksViewChanges] = useState(true);
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const filteredVenues = useMemo(
@@ -77,6 +90,7 @@ export default function MapScreen() {
   );
   const noResults = !loading && activeFilters.length > 0 && venues.length > 0 && filteredVenues.length === 0;
   const currentRegionRef = useRef(SINGAPORE_REGION);
+  const lastMarkerPressAt = useRef(0);
 
   const { venueId } = useLocalSearchParams<{ venueId?: string }>();
   const handledVenueId = useRef<string | null>(null);
@@ -89,24 +103,11 @@ export default function MapScreen() {
       return;
     }
     setLoadError(false);
-    const venues = data as Venue[];
-    const results = await Promise.allSettled(
-      venues.map(v => v.google_place_id ? fetchPlaceDetails(v.google_place_id) : Promise.resolve(null))
-    );
-    setVenues(
-      venues.map((v, i) => {
-        const r = results[i];
-        if (r.status !== 'fulfilled' || !r.value) return v;
-        const { rating, openNow, closingTime, weekdayHours } = r.value;
-        return {
-          ...v,
-          ...(rating        != null ? { rating }        : {}),
-          ...(openNow       != null ? { openNow }       : {}),
-          ...(closingTime   != null ? { closingTime }   : {}),
-          ...(weekdayHours  != null ? { weekdayHours }  : {}),
-        };
-      })
-    );
+    // Places Details (legacy) API has no browser CORS support, so live
+    // ratings/hours can't be fetched from web — venues fall back to
+    // manually-entered Supabase hours/rating, same as when this fetch
+    // fails on native.
+    setVenues(data as Venue[]);
     setLoading(false);
   }
 
@@ -141,10 +142,7 @@ export default function MapScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // 3 s gives Android time to load network images before freezing the bitmap
-      const timer = setTimeout(() => setTracksViewChanges(false), 3000);
       fetchVenues();
-      return () => clearTimeout(timer);
     }, [])
   );
 
@@ -169,57 +167,36 @@ export default function MapScreen() {
     });
   }
 
-  // Android freezes each pin's bitmap once tracksViewChanges flips to false (perf).
-  // When the filter set changes, the map layer won't repaint which pins are shown
-  // until the user pans — so briefly re-enable tracking to force an immediate redraw.
-  // Skip the initial mount so we don't cut short the 3 s image-loading grace period
-  // set up in the focus effect (which would risk blank pins on first load).
-  const skipInitialFilterRedraw = useRef(true);
-  useEffect(() => {
-    if (skipInitialFilterRedraw.current) {
-      skipInitialFilterRedraw.current = false;
-      return;
-    }
-    setTracksViewChanges(true);
-    const timer = setTimeout(() => setTracksViewChanges(false), 500);
-    return () => clearTimeout(timer);
-  }, [activeFilters]);
-
-  // Same redraw problem for the saved heart on each pin: saving from the venue
-  // sheet would otherwise leave the badge missing until the map is panned.
-  // `isSaved` is rebuilt whenever the saved set changes, so it works as the trigger.
-  const skipInitialSavedRedraw = useRef(true);
-  useEffect(() => {
-    if (skipInitialSavedRedraw.current) {
-      skipInitialSavedRedraw.current = false;
-      return;
-    }
-    setTracksViewChanges(true);
-    const timer = setTimeout(() => setTracksViewChanges(false), 500);
-    return () => clearTimeout(timer);
-  }, [isSaved]);
-
   function handleMarkerPress(venue: Venue) {
+    lastMarkerPressAt.current = Date.now();
     setSelectedVenue(venue);
     if (venue.lat == null || venue.lng == null) return;
-    // Centre pin in the visible map area above the 65% bottom sheet
+    // Centre pin in the visible map area above the 65% bottom sheet.
+    // animateCamera (pure pan, no zoom set) instead of animateToRegion:
+    // on web animateToRegion goes through Google's fitBounds(), which
+    // snaps to the nearest whole zoom level that fully contains the
+    // bounds — usually rounding out — and since the next tap reads back
+    // that already-wider zoom, repeated taps drift further out each time.
     const region = currentRegionRef.current;
     const offset = region.latitudeDelta * 0.325;
-    mapRef.current?.animateToRegion(
-      {
-        latitude: venue.lat - offset,
-        longitude: venue.lng,
-        latitudeDelta: region.latitudeDelta,
-        longitudeDelta: region.longitudeDelta,
-      },
-      350
+    mapRef.current?.animateCamera(
+      { center: { latitude: venue.lat - offset, longitude: venue.lng } },
+      { duration: 350 }
     );
   }
 
   function handleSheetClose() {
-    setTracksViewChanges(true);
     setSelectedVenue(null);
-    setTimeout(() => setTracksViewChanges(false), 300);
+  }
+
+  // Tapping empty map closes the sheet — but a marker tap must not.
+  // The marker stops its click from reaching the map, which covers mouse
+  // input; on touch, Google can derive the map tap from touch events that
+  // never pass through the marker's click handler, so this also ignores a
+  // map press landing right after a marker press.
+  function handleMapPress() {
+    if (Date.now() - lastMarkerPressAt.current < 400) return;
+    handleSheetClose();
   }
 
   async function checkLocationPermission() {
@@ -230,14 +207,10 @@ export default function MapScreen() {
       return;
     }
     if (status === 'undetermined') {
-      Alert.alert(
-        'Find cafes near you',
-        'Allow PawMap to use your location so we can show pet-friendly spots nearby. Your location is only used while the app is open.',
-        [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Allow', onPress: requestPermission },
-        ]
-      );
+      // react-native-web's Alert.alert() is a no-op — there's no custom
+      // dialog on web, so just request directly. The browser shows its
+      // own native "use your location?" prompt.
+      requestPermission();
     }
   }
 
@@ -250,27 +223,29 @@ export default function MapScreen() {
   }
 
   async function centreOnUser() {
-    const region = (lat: number, lng: number) => ({
-      latitude: lat, longitude: lng, latitudeDelta: 0.04, longitudeDelta: 0.04,
-    });
+    // animateCamera with an explicit zoom (not animateToRegion/fitBounds —
+    // see handleMarkerPress for why fitBounds-derived zoom is unreliable
+    // on web) so opening the app zooms straight to street level.
+    const moveTo = (lat: number, lng: number) =>
+      mapRef.current?.animateCamera({ center: { latitude: lat, longitude: lng }, zoom: 15 }, { duration: 800 });
 
     // Use cached position instantly if available
     const last = await Location.getLastKnownPositionAsync();
     if (last) {
-      mapRef.current?.animateToRegion(region(last.coords.latitude, last.coords.longitude), 800);
+      moveTo(last.coords.latitude, last.coords.longitude);
       return;
     }
 
     // No cache — wait for a fresh fix
     const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    mapRef.current?.animateToRegion(region(fresh.coords.latitude, fresh.coords.longitude), 800);
+    moveTo(fresh.coords.latitude, fresh.coords.longitude);
   }
 
   return (
     <View style={styles.container}>
-      <MapView
+      <WebMapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider="google"
         style={StyleSheet.absoluteFillObject}
         initialRegion={SINGAPORE_REGION}
         showsUserLocation={showUserLocation}
@@ -279,6 +254,20 @@ export default function MapScreen() {
         showsPointsOfInterest={false}
         moveOnMarkerPress={false}
         customMapStyle={MAP_STYLE}
+        googleMapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_KEY}
+        onPress={handleMapPress}
+        options={{
+          zoomControl: false,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          // Stops Google's built-in place-name/POI info bubble from
+          // popping up when tapping labels baked into the base map tiles.
+          clickableIcons: false,
+        }}
+        onRegionChange={(region) => {
+          currentRegionRef.current = region;
+        }}
         onRegionChangeComplete={(region) => {
           currentRegionRef.current = region;
         }}
@@ -287,7 +276,6 @@ export default function MapScreen() {
             <Marker
               key={venue.id}
               coordinate={markerPositions.get(venue.id) ?? { latitude: venue.lat!, longitude: venue.lng! }}
-              tracksViewChanges={tracksViewChanges || selectedVenue?.id === venue.id}
               onPress={() => handleMarkerPress(venue)}
               anchor={{ x: 0.5, y: 1 }}
               style={{ backgroundColor: 'transparent' }}
@@ -301,7 +289,7 @@ export default function MapScreen() {
             </Marker>
           ))
         }
-      </MapView>
+      </WebMapView>
 
       {loading && venues.length === 0 && !loadError && (
         <View style={[styles.statusPill, { top: insets.top + 12 }]} pointerEvents="none">

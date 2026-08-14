@@ -1,0 +1,260 @@
+diff --git a/node_modules/@teovilla/react-native-web-maps/dist/commonjs/components/map-view.js b/node_modules/@teovilla/react-native-web-maps/dist/commonjs/components/map-view.js
+index c7b8abb..e90a99b 100644
+--- a/node_modules/@teovilla/react-native-web-maps/dist/commonjs/components/map-view.js
++++ b/node_modules/@teovilla/react-native-web-maps/dist/commonjs/components/map-view.js
+@@ -103,6 +103,16 @@ function _MapView(props, ref) {
+       map === null || map === void 0 ? void 0 : map.moveCamera((0, _camera.transformRNCameraObject)(camera));
+     },
+     animateCamera(camera, _opts) {
++      // map.moveCamera() jumps instantly — Google Maps documents no
++      // animation for it. When only the center is changing (our common
++      // case), use panTo() instead, which Google animates smoothly.
++      if (camera.center && camera.zoom === undefined && camera.heading === undefined && camera.pitch === undefined) {
++        map === null || map === void 0 ? void 0 : map.panTo({
++          lat: camera.center.latitude,
++          lng: camera.center.longitude
++        });
++        return;
++      }
+       map === null || map === void 0 ? void 0 : map.moveCamera((0, _camera.transformRNCameraObject)(camera));
+     },
+     async getMapBoundaries() {
+@@ -236,8 +246,23 @@ function _MapView(props, ref) {
+       });
+     }
+   }, [props.followsUserLocation, userLocation]);
++  // GoogleMap re-runs `map.setCenter(center)` whenever the `center` prop
++  // changes identity, and `map.getCenter()` returns a fresh LatLng on every
++  // call — so re-rendering for any reason (e.g. a marker changing colour)
++  // used to snap the map back to its pre-animation position, cancelling any
++  // in-flight panTo. Memoising on `map` keeps one stable value: the initial
++  // center is still applied once, and afterwards the map owns its own
++  // position, driven imperatively through the ref handle above.
++  const stableCenter = (0, _react.useMemo)(() => {
++    var _c, _r, _c2, _r2;
++    if (map) return map.getCenter();
++    return {
++      lat: ((_c = props.initialCamera) === null || _c === void 0 ? void 0 : _c.center.latitude) || ((_r = props.initialRegion) === null || _r === void 0 ? void 0 : _r.latitude) || 0,
++      lng: ((_c2 = props.initialCamera) === null || _c2 === void 0 ? void 0 : _c2.center.longitude) || ((_r2 = props.initialRegion) === null || _r2 === void 0 ? void 0 : _r2.longitude) || 0
++    };
++  }, [map]);
+   const mapNode = (0, _react.useMemo)(() => {
+-    var _props$initialCamera, _props$initialCamera2, _props$initialCamera3, _props$initialCamera4, _props$initialRegion, _props$initialCamera5, _props$initialRegion2;
++    var _props$initialCamera, _props$initialCamera2, _props$initialCamera3;
+     return /*#__PURE__*/_react.default.createElement(_api.GoogleMap, {
+       onLoad: _onMapReady,
+       onBoundsChanged: _onRegionChange,
+@@ -265,10 +290,7 @@ function _MapView(props, ref) {
+         var _props$onDoublePress;
+         return (_props$onDoublePress = props.onDoublePress) === null || _props$onDoublePress === void 0 ? void 0 : _props$onDoublePress.call(props, (0, _mouseEvent.mapMouseEventToMapEvent)(e, null, map, 'press'));
+       },
+-      center: map ? map.getCenter() : {
+-        lat: ((_props$initialCamera4 = props.initialCamera) === null || _props$initialCamera4 === void 0 ? void 0 : _props$initialCamera4.center.latitude) || ((_props$initialRegion = props.initialRegion) === null || _props$initialRegion === void 0 ? void 0 : _props$initialRegion.latitude) || 0,
+-        lng: ((_props$initialCamera5 = props.initialCamera) === null || _props$initialCamera5 === void 0 ? void 0 : _props$initialCamera5.center.longitude) || ((_props$initialRegion2 = props.initialRegion) === null || _props$initialRegion2 === void 0 ? void 0 : _props$initialRegion2.longitude) || 0
+-      },
++      center: stableCenter,
+       options: {
+         scrollwheel: props.zoomEnabled,
+         disableDoubleClickZoom: !props.zoomTapEnabled,
+@@ -285,7 +307,7 @@ function _MapView(props, ref) {
+     }, props.showsUserLocation && userLocation && /*#__PURE__*/_react.default.createElement(_userLocationMarker.UserLocationMarker, {
+       coordinates: userLocation.coords
+     }), props.children);
+-  }, [_onRegionChange, _onMapReady, userLocation, props.initialCamera, props.initialRegion, props.showsUserLocation, props.onPanDrag, props.onPress, props.onDoublePress, props.zoomEnabled, props.zoomTapEnabled, props.zoomControlEnabled, props.rotateEnabled, props.minZoomLevel, props.maxZoomLevel, props.showsScale, props.customMapStyle, props.options]);
++  }, [_onRegionChange, _onMapReady, userLocation, props.initialCamera, props.initialRegion, props.showsUserLocation, props.onPanDrag, props.onPress, props.onDoublePress, props.zoomEnabled, props.zoomTapEnabled, props.zoomControlEnabled, props.rotateEnabled, props.minZoomLevel, props.maxZoomLevel, props.showsScale, props.customMapStyle, props.options, props.children, stableCenter]);
+   if (props.provider !== 'google') {
+     console.warn('[WARNING] `react-native-web-maps` only suppots google for now. Please pass "google" as provider in props');
+     return null;
+diff --git a/node_modules/@teovilla/react-native-web-maps/dist/commonjs/components/marker.web.js b/node_modules/@teovilla/react-native-web-maps/dist/commonjs/components/marker.web.js
+index 8212d07..3c87022 100644
+--- a/node_modules/@teovilla/react-native-web-maps/dist/commonjs/components/marker.web.js
++++ b/node_modules/@teovilla/react-native-web-maps/dist/commonjs/components/marker.web.js
+@@ -61,6 +61,35 @@ function MarkerF(props) {
+     (_props$onPress = props.onPress) === null || _props$onPress === void 0 ? void 0 : _props$onPress.call(props, (0, _mouseEvent.mapMouseEventToMapEvent)(e, props.coordinate, map, 'marker-press'));
+     props.toggleCalloutVisible();
+   };
++  // Tapping a custom overlay also fires the *map's* click unless Google is
++  // told otherwise, which makes a marker tap instantly deselect itself.
++  // DOM-level stopPropagation is not enough: on touch the map derives its
++  // tap from the touch sequence and sees it *before* any DOM click exists,
++  // so the marker never gets a chance to intercept it. preventMapHitsFrom
++  // is the documented API for this — it hooks Google's own hit testing and
++  // covers mouse and touch alike. Gestures are deliberately left alone
++  // (preventMapHitsFrom, not preventMapHitsAndGesturesFrom) so dragging the
++  // map still works when the drag happens to start on a pin.
++  // The React onClick below stays as a fallback in case this effect never
++  // runs — degrading to the old behaviour beats an untappable marker.
++  const onMarkerPressRef = _react.default.useRef(onMarkerPress);
++  onMarkerPressRef.current = onMarkerPress;
++  _react.default.useEffect(() => {
++    const node = customMarkerContainerRef.current;
++    if (!node) return;
++    const handleNativeClick = domEvent => {
++      domEvent.stopPropagation();
++      onMarkerPressRef.current();
++    };
++    // Registered *before* preventMapHitsFrom: listeners on the same element
++    // fire in registration order, so this still runs even if Google's own
++    // handler stops immediate propagation.
++    node.addEventListener('click', handleNativeClick);
++    if (typeof google !== 'undefined' && google.maps && google.maps.OverlayView && typeof google.maps.OverlayView.preventMapHitsFrom === 'function') {
++      google.maps.OverlayView.preventMapHitsFrom(node);
++    }
++    return () => node.removeEventListener('click', handleNativeClick);
++  }, [customMarkerContainerRef.current]);
+   const hasNonCalloutChildren = _react.default.useMemo(() => !!_react.default.Children.toArray(props.children).find(child => {
+     return child.type !== _callout.Callout;
+   }), [props.children]);
+diff --git a/node_modules/@teovilla/react-native-web-maps/dist/commonjs/hooks/use-user-location.js b/node_modules/@teovilla/react-native-web-maps/dist/commonjs/hooks/use-user-location.js
+index 521f772..a380ecf 100644
+--- a/node_modules/@teovilla/react-native-web-maps/dist/commonjs/hooks/use-user-location.js
++++ b/node_modules/@teovilla/react-native-web-maps/dist/commonjs/hooks/use-user-location.js
+@@ -33,7 +33,7 @@ function useUserLocation(options) {
+     });
+   }, [options.onUserLocationChange]);
+   (0, _react.useEffect)(() => {
+-    if (permission !== null && permission !== void 0 && permission.granted && options.followUserLocation) {
++    if (permission !== null && permission !== void 0 && permission.granted && (options.followUserLocation || options.showUserLocation)) {
+       Location.getCurrentPositionAsync().then(handleLocationChange);
+       // Watch position
+       Location.watchPositionAsync({
+@@ -41,7 +41,7 @@ function useUserLocation(options) {
+       }, handleLocationChange).then(setWatchPositionSubscription);
+     }
+     return () => watchPositionSubscription === null || watchPositionSubscription === void 0 ? void 0 : watchPositionSubscription.remove();
+-  }, [permission, options.followUserLocation]);
++  }, [permission, options.followUserLocation, options.showUserLocation]);
+   return location;
+ }
+ //# sourceMappingURL=use-user-location.js.map
+\ No newline at end of file
+diff --git a/node_modules/@teovilla/react-native-web-maps/dist/module/components/map-view.js b/node_modules/@teovilla/react-native-web-maps/dist/module/components/map-view.js
+index 8bca5e5..b43c564 100644
+--- a/node_modules/@teovilla/react-native-web-maps/dist/module/components/map-view.js
++++ b/node_modules/@teovilla/react-native-web-maps/dist/module/components/map-view.js
+@@ -95,6 +95,16 @@ function _MapView(props, ref) {
+       map === null || map === void 0 ? void 0 : map.moveCamera(transformRNCameraObject(camera));
+     },
+     animateCamera(camera, _opts) {
++      // map.moveCamera() jumps instantly — Google Maps documents no
++      // animation for it. When only the center is changing (our common
++      // case), use panTo() instead, which Google animates smoothly.
++      if (camera.center && camera.zoom === undefined && camera.heading === undefined && camera.pitch === undefined) {
++        map === null || map === void 0 ? void 0 : map.panTo({
++          lat: camera.center.latitude,
++          lng: camera.center.longitude
++        });
++        return;
++      }
+       map === null || map === void 0 ? void 0 : map.moveCamera(transformRNCameraObject(camera));
+     },
+     async getMapBoundaries() {
+@@ -228,8 +238,23 @@ function _MapView(props, ref) {
+       });
+     }
+   }, [props.followsUserLocation, userLocation]);
++  // GoogleMap re-runs `map.setCenter(center)` whenever the `center` prop
++  // changes identity, and `map.getCenter()` returns a fresh LatLng on every
++  // call — so re-rendering for any reason (e.g. a marker changing colour)
++  // used to snap the map back to its pre-animation position, cancelling any
++  // in-flight panTo. Memoising on `map` keeps one stable value: the initial
++  // center is still applied once, and afterwards the map owns its own
++  // position, driven imperatively through the ref handle above.
++  const stableCenter = useMemo(() => {
++    var _c, _r, _c2, _r2;
++    if (map) return map.getCenter();
++    return {
++      lat: ((_c = props.initialCamera) === null || _c === void 0 ? void 0 : _c.center.latitude) || ((_r = props.initialRegion) === null || _r === void 0 ? void 0 : _r.latitude) || 0,
++      lng: ((_c2 = props.initialCamera) === null || _c2 === void 0 ? void 0 : _c2.center.longitude) || ((_r2 = props.initialRegion) === null || _r2 === void 0 ? void 0 : _r2.longitude) || 0
++    };
++  }, [map]);
+   const mapNode = useMemo(() => {
+-    var _props$initialCamera, _props$initialCamera2, _props$initialCamera3, _props$initialCamera4, _props$initialRegion, _props$initialCamera5, _props$initialRegion2;
++    var _props$initialCamera, _props$initialCamera2, _props$initialCamera3;
+     return /*#__PURE__*/React.createElement(GoogleMap, {
+       onLoad: _onMapReady,
+       onBoundsChanged: _onRegionChange,
+@@ -257,10 +282,7 @@ function _MapView(props, ref) {
+         var _props$onDoublePress;
+         return (_props$onDoublePress = props.onDoublePress) === null || _props$onDoublePress === void 0 ? void 0 : _props$onDoublePress.call(props, mapMouseEventToMapEvent(e, null, map, 'press'));
+       },
+-      center: map ? map.getCenter() : {
+-        lat: ((_props$initialCamera4 = props.initialCamera) === null || _props$initialCamera4 === void 0 ? void 0 : _props$initialCamera4.center.latitude) || ((_props$initialRegion = props.initialRegion) === null || _props$initialRegion === void 0 ? void 0 : _props$initialRegion.latitude) || 0,
+-        lng: ((_props$initialCamera5 = props.initialCamera) === null || _props$initialCamera5 === void 0 ? void 0 : _props$initialCamera5.center.longitude) || ((_props$initialRegion2 = props.initialRegion) === null || _props$initialRegion2 === void 0 ? void 0 : _props$initialRegion2.longitude) || 0
+-      },
++      center: stableCenter,
+       options: {
+         scrollwheel: props.zoomEnabled,
+         disableDoubleClickZoom: !props.zoomTapEnabled,
+@@ -277,7 +299,7 @@ function _MapView(props, ref) {
+     }, props.showsUserLocation && userLocation && /*#__PURE__*/React.createElement(UserLocationMarker, {
+       coordinates: userLocation.coords
+     }), props.children);
+-  }, [_onRegionChange, _onMapReady, userLocation, props.initialCamera, props.initialRegion, props.showsUserLocation, props.onPanDrag, props.onPress, props.onDoublePress, props.zoomEnabled, props.zoomTapEnabled, props.zoomControlEnabled, props.rotateEnabled, props.minZoomLevel, props.maxZoomLevel, props.showsScale, props.customMapStyle, props.options]);
++  }, [_onRegionChange, _onMapReady, userLocation, props.initialCamera, props.initialRegion, props.showsUserLocation, props.onPanDrag, props.onPress, props.onDoublePress, props.zoomEnabled, props.zoomTapEnabled, props.zoomControlEnabled, props.rotateEnabled, props.minZoomLevel, props.maxZoomLevel, props.showsScale, props.customMapStyle, props.options, props.children, stableCenter]);
+   if (props.provider !== 'google') {
+     console.warn('[WARNING] `react-native-web-maps` only suppots google for now. Please pass "google" as provider in props');
+     return null;
+diff --git a/node_modules/@teovilla/react-native-web-maps/dist/module/components/marker.web.js b/node_modules/@teovilla/react-native-web-maps/dist/module/components/marker.web.js
+index 37b7af0..36c45cd 100644
+--- a/node_modules/@teovilla/react-native-web-maps/dist/module/components/marker.web.js
++++ b/node_modules/@teovilla/react-native-web-maps/dist/module/components/marker.web.js
+@@ -53,6 +53,35 @@ function MarkerF(props) {
+     (_props$onPress = props.onPress) === null || _props$onPress === void 0 ? void 0 : _props$onPress.call(props, mapMouseEventToMapEvent(e, props.coordinate, map, 'marker-press'));
+     props.toggleCalloutVisible();
+   };
++  // Tapping a custom overlay also fires the *map's* click unless Google is
++  // told otherwise, which makes a marker tap instantly deselect itself.
++  // DOM-level stopPropagation is not enough: on touch the map derives its
++  // tap from the touch sequence and sees it *before* any DOM click exists,
++  // so the marker never gets a chance to intercept it. preventMapHitsFrom
++  // is the documented API for this — it hooks Google's own hit testing and
++  // covers mouse and touch alike. Gestures are deliberately left alone
++  // (preventMapHitsFrom, not preventMapHitsAndGesturesFrom) so dragging the
++  // map still works when the drag happens to start on a pin.
++  // The React onClick below stays as a fallback in case this effect never
++  // runs — degrading to the old behaviour beats an untappable marker.
++  const onMarkerPressRef = React.useRef(onMarkerPress);
++  onMarkerPressRef.current = onMarkerPress;
++  React.useEffect(() => {
++    const node = customMarkerContainerRef.current;
++    if (!node) return;
++    const handleNativeClick = domEvent => {
++      domEvent.stopPropagation();
++      onMarkerPressRef.current();
++    };
++    // Registered *before* preventMapHitsFrom: listeners on the same element
++    // fire in registration order, so this still runs even if Google's own
++    // handler stops immediate propagation.
++    node.addEventListener('click', handleNativeClick);
++    if (typeof google !== 'undefined' && google.maps && google.maps.OverlayView && typeof google.maps.OverlayView.preventMapHitsFrom === 'function') {
++      google.maps.OverlayView.preventMapHitsFrom(node);
++    }
++    return () => node.removeEventListener('click', handleNativeClick);
++  }, [customMarkerContainerRef.current]);
+   const hasNonCalloutChildren = React.useMemo(() => !!React.Children.toArray(props.children).find(child => {
+     return child.type !== Callout;
+   }), [props.children]);
+diff --git a/node_modules/@teovilla/react-native-web-maps/dist/module/hooks/use-user-location.js b/node_modules/@teovilla/react-native-web-maps/dist/module/hooks/use-user-location.js
+index 2d4d718..7243f60 100644
+--- a/node_modules/@teovilla/react-native-web-maps/dist/module/hooks/use-user-location.js
++++ b/node_modules/@teovilla/react-native-web-maps/dist/module/hooks/use-user-location.js
+@@ -25,7 +25,7 @@ export function useUserLocation(options) {
+     });
+   }, [options.onUserLocationChange]);
+   useEffect(() => {
+-    if (permission !== null && permission !== void 0 && permission.granted && options.followUserLocation) {
++    if (permission !== null && permission !== void 0 && permission.granted && (options.followUserLocation || options.showUserLocation)) {
+       Location.getCurrentPositionAsync().then(handleLocationChange);
+       // Watch position
+       Location.watchPositionAsync({
+@@ -33,7 +33,7 @@ export function useUserLocation(options) {
+       }, handleLocationChange).then(setWatchPositionSubscription);
+     }
+     return () => watchPositionSubscription === null || watchPositionSubscription === void 0 ? void 0 : watchPositionSubscription.remove();
+-  }, [permission, options.followUserLocation]);
++  }, [permission, options.followUserLocation, options.showUserLocation]);
+   return location;
+ }
+ //# sourceMappingURL=use-user-location.js.map
+\ No newline at end of file

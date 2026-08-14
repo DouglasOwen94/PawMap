@@ -8,11 +8,11 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Dimensions,
   Easing,
-  FlatList,
   Keyboard,
   Linking,
+  Platform,
+  ScrollView as RNScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -20,17 +20,28 @@ import {
   View,
   Modal,
 } from 'react-native';
-import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Font } from '@/constants/fonts';
 import { supabase } from '@/lib/supabase';
 
 import { getDogSizeLabel, getOpenStatus, getSeatingLabel, getVerificationText, isExpiredVenue, isIndoorVerified } from '@/utils/venue';
+import { PhotoLightbox } from '@/components/PhotoLightbox';
+import { PhotoStrip } from '@/components/PhotoStrip';
 import { Skeleton } from '@/components/Skeleton';
 import type { Venue, CommunityPhoto } from '@/types/venue';
 
 // Flat light-grey blurhash so photos fade in from grey, not white.
 const PHOTO_PLACEHOLDER = '00QvwN';
+
+// The tag and community rows scroll natively rather than through
+// gesture-handler, which keeps a vertical drag started on a row from being
+// swallowed before it reaches the sheet, and lets them scroll with a mouse or
+// trackpad on desktop. Caveat: on a touchscreen they still cannot scroll while
+// the sheet is collapsed, because gesture-handler holds pointer capture for
+// the sheet's drag — the photo pager works around this with its own gesture
+// (see PhotoStrip.web.tsx); these rows have not needed it yet.
+const HorizontalScrollView = Platform.OS === 'web' ? RNScrollView : GestureScrollView;
 
 type Props = {
   venue: Venue | null;
@@ -38,8 +49,6 @@ type Props = {
   isSaved: boolean;
   onToggleSave: (venue: Venue) => void;
 };
-
-const SCREEN_W = Dimensions.get('window').width;
 
 const REASONS = [
   'No longer pet-friendly',
@@ -315,6 +324,14 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
         snapPoints={snapPoints}
         enablePanDownToClose
         onClose={onClose}
+        // The sheet's drag otherwise claims horizontal swipes too, which
+        // blocks the photo/tag strips from scrolling sideways until the
+        // sheet is fully expanded. Require ~10px of vertical movement before
+        // the sheet starts dragging, and abandon the drag outright once a
+        // gesture travels ~15px horizontally, so sideways swipes belong to
+        // the strip underneath.
+        activeOffsetY={[-10, 10]}
+        failOffsetX={[-15, 15]}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
       >
@@ -328,29 +345,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 ].filter(p => !!p.uri) as { uri: string; label: string | null }[];
                 return (
                   <View style={styles.photoContainer}>
-                    <ScrollView
-                      horizontal
-                      pagingEnabled
-                      showsHorizontalScrollIndicator={false}
-                      scrollEnabled={photos.length > 1}
-                    >
-                      {photos.map((photo, i) => (
-                        <View key={i} style={{ width: SCREEN_W, height: 200 }}>
-                          <Image
-                            source={{ uri: photo.uri }}
-                            style={StyleSheet.absoluteFillObject}
-                            contentFit="cover"
-                            transition={400}
-                            placeholder={{ blurhash: PHOTO_PLACEHOLDER }}
-                          />
-                          {photo.label && (
-                            <View style={styles.photoLabel}>
-                              <Text style={styles.photoLabelText}>{photo.label}</Text>
-                            </View>
-                          )}
-                        </View>
-                      ))}
-                    </ScrollView>
+                    <PhotoStrip photos={photos} />
                     {photos.length > 1 && (
                       <View style={styles.dotsRow}>
                         {photos.map((_, i) => (
@@ -466,7 +461,7 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 {/* ── Tags ── */}
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>What&apos;s here</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
+                  <HorizontalScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
                     {/* Warning tags first */}
                     {venue.leash_free === false && !hasCarrierTag(venue.tags ?? []) && (
                       <View style={styles.tagWarning}><Text style={styles.tagWarningText}>⚠ Leash required</Text></View>
@@ -487,30 +482,35 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                     {Array.isArray(venue.tags) && venue.tags.filter(t => !isWarningTag(t)).map(tag => (
                       <View key={tag} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>
                     ))}
-                  </ScrollView>
+                  </HorizontalScrollView>
                 </View>
 
                 {/* ── Community photos ── */}
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>From the community</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
+                  {/* Hint sits in the header, not under the + tile — under it,
+                      only one tile carried two lines of text and the row's
+                      baseline came out visibly uneven. */}
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionLabel}>From the community</Text>
                     {communityPhotos.length < 10 && (
-                      <View style={styles.addPhotoBtnWrapper}>
-                        <TouchableOpacity
-                          style={styles.addPhotoBtn}
-                          onPress={handleAddPhoto}
-                          activeOpacity={0.7}
-                          disabled={uploading}
-                          accessibilityRole="button"
-                          accessibilityLabel="Add a photo"
-                          accessibilityState={{ busy: uploading, disabled: uploading }}
-                        >
-                          {uploading
-                            ? <ActivityIndicator size="small" color="#6B6B6B" />
-                            : <Text style={styles.addPhotoBtnText}>+</Text>}
-                        </TouchableOpacity>
-                        <Text style={styles.addPhotoHint}>Love this place?{'\n'}Share a photo.</Text>
-                      </View>
+                      <Text style={styles.sectionHint}>Love this place? Share a photo.</Text>
+                    )}
+                  </View>
+                  <HorizontalScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
+                    {communityPhotos.length < 10 && (
+                      <TouchableOpacity
+                        style={styles.addPhotoBtn}
+                        onPress={handleAddPhoto}
+                        activeOpacity={0.7}
+                        disabled={uploading}
+                        accessibilityRole="button"
+                        accessibilityLabel="Add a photo"
+                        accessibilityState={{ busy: uploading, disabled: uploading }}
+                      >
+                        {uploading
+                          ? <ActivityIndicator size="small" color="#6B6B6B" />
+                          : <Text style={styles.addPhotoBtnText}>+</Text>}
+                      </TouchableOpacity>
                     )}
                     {photosLoading
                       ? [0, 1, 2].map(i => (
@@ -531,9 +531,13 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                               transition={300}
                               placeholder={{ blurhash: PHOTO_PLACEHOLDER }}
                             />
+                            {/* Nothing else signals these open full screen. */}
+                            <View style={styles.thumbExpandBadge}>
+                              <Ionicons name="expand" size={10} color="#FFFFFF" />
+                            </View>
                           </TouchableOpacity>
                         ))}
-                  </ScrollView>
+                  </HorizontalScrollView>
                   {photosError && (
                     <Text style={styles.uploadErrorText}>Couldn&apos;t load photos.</Text>
                   )}
@@ -564,41 +568,12 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
         </BottomSheetScrollView>
       </BottomSheet>
 
-      {/* Full-screen community photo preview */}
-      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
-        <GestureHandlerRootView style={styles.previewOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setPreviewIndex(null)} activeOpacity={1} />
-          <FlatList
-            data={communityPhotos}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            initialScrollIndex={previewIndex ?? 0}
-            getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-            keyExtractor={item => String(item.id)}
-            renderItem={({ item }) => (
-              <View style={{ width: SCREEN_W, alignItems: 'center', justifyContent: 'center' }}>
-                <Image
-                  source={{ uri: item.photo_url }}
-                  style={styles.previewImage}
-                  contentFit="cover"
-                  transition={200}
-                  placeholder={{ blurhash: PHOTO_PLACEHOLDER }}
-                />
-              </View>
-            )}
-          />
-          <TouchableOpacity
-            style={styles.previewClose}
-            onPress={() => setPreviewIndex(null)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel="Close photo"
-          >
-            <Ionicons name="close" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-        </GestureHandlerRootView>
-      </Modal>
+      {/* Full-screen community photo viewer */}
+      <PhotoLightbox
+        photos={communityPhotos}
+        index={previewIndex}
+        onClose={() => setPreviewIndex(null)}
+      />
 
       {/* Directions action sheet */}
       <Modal visible={directionsVisible} transparent animationType="none" onRequestClose={() => closeDirections()}>
@@ -740,11 +715,6 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 40 },
 
   photoContainer: { height: 200, backgroundColor: '#F7F7F5', overflow: 'hidden' },
-  photoLabel: {
-    position: 'absolute', bottom: 28, left: 12,
-    backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
-  },
-  photoLabelText: { fontSize: 11, fontFamily: Font.semiBold, color: '#FFFFFF' },
   dotsRow: {
     position: 'absolute', bottom: 10, left: 0, right: 0,
     flexDirection: 'row', justifyContent: 'center', gap: 5,
@@ -794,7 +764,9 @@ const styles = StyleSheet.create({
 
   // Sections (tags, community)
   section:        { gap: 10 },
+  sectionHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   sectionLabel:   { fontSize: 11, fontFamily: Font.semiBold, color: '#ABABAB', textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionHint:    { fontSize: 11, fontFamily: Font.regular, color: '#ABABAB', flexShrink: 1, textAlign: 'right' },
   tagsScroll:     { gap: 6, paddingBottom: 2 },
   tag:            { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
   tagText:        { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
@@ -849,10 +821,9 @@ const styles = StyleSheet.create({
   // Community photos
   communityRow:     { gap: 8, paddingBottom: 4 },
   communityThumb:   { width: 80, height: 80, borderRadius: 10 },
+  thumbExpandBadge: { position: 'absolute', bottom: 5, right: 5, width: 18, height: 18, borderRadius: 5, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   addPhotoBtn:      { width: 80, height: 80, borderRadius: 10, borderWidth: 1.5, borderColor: '#E8E8E4', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F7F5' },
   addPhotoBtnText:  { fontSize: 24, color: '#ABABAB', lineHeight: 28 },
-  addPhotoBtnWrapper: { alignItems: 'center', gap: 6, width: 80 },
-  addPhotoHint:       { fontSize: 11, fontFamily: Font.regular, color: '#ABABAB', textAlign: 'center', lineHeight: 15 },
   uploadErrorText:  { fontSize: 12, fontFamily: Font.medium, color: '#EF4444', marginTop: 4 },
   uploadNoticeText: { fontSize: 12, fontFamily: Font.medium, color: '#22C55E', marginTop: 4 },
 
@@ -864,9 +835,4 @@ const styles = StyleSheet.create({
   directionsOptionText: { flex: 1, fontSize: 15, fontFamily: Font.medium, color: '#0A0A0A' },
   directionsCancel:     { alignItems: 'center', paddingVertical: 14, marginTop: 2, borderRadius: 14, borderWidth: 1, borderColor: '#E8E8E4' },
   directionsCancelText: { fontSize: 15, fontFamily: Font.medium, color: '#6B6B6B' },
-
-  // Photo preview modal
-  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center' },
-  previewImage:   { width: SCREEN_W * 0.92, aspectRatio: 3 / 4, borderRadius: 12 },
-  previewClose:   { position: 'absolute', top: 56, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
 });
