@@ -275,6 +275,13 @@ export default function MapScreen() {
           // Stops Google's built-in place-name/POI info bubble from
           // popping up when tapping labels baked into the base map tiles.
           clickableIcons: false,
+          // Removes the "Keyboard shortcuts" link from the bottom-right
+          // strip — it references a real feature, so turning the feature
+          // off removes its own help link. The rest of that strip ("Map
+          // data ©Google", "Terms", "Report a map error") is required
+          // attribution under Google's Maps Platform terms and can't be
+          // hidden — see the chat explanation for why this stops here.
+          keyboardShortcuts: false,
         }}
         onRegionChange={(region) => {
           currentRegionRef.current = region;
