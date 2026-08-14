@@ -1,0 +1,47 @@
+name: Deploy web to GitHub Pages
+
+on:
+  push:
+    branches: [web-export]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export web build
+        run: npx expo export -p web
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_GOOGLE_MAPS_WEB_KEY: ${{ secrets.EXPO_PUBLIC_GOOGLE_MAPS_WEB_KEY }}
+
+      # GitHub Pages looks for a file literally named 404.html to serve on any
+      # unmatched path. expo-router's static export produces the equivalent
+      # page at +not-found.html (same JS bundle, same base path baked in) —
+      # confirmed by diffing its <script> tag against index.html's — so this
+      # copy is all GitHub Pages needs for direct/refreshed nested URLs to
+      # resolve correctly instead of showing a bare 404.
+      - name: Add SPA fallback for GitHub Pages
+        run: cp "dist/+not-found.html" dist/404.html
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
