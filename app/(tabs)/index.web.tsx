@@ -203,36 +203,61 @@ export default function MapScreen() {
     handleSheetClose();
   }
 
+  // On web, neither of expo-location's permission calls actually shows the
+  // browser's location prompt — both only read navigator.permissions, and
+  // requestForegroundPermissionsAsync is the same query rather than a request.
+  // Safari is worse still: it rejects 'geolocation' as a queryable permission
+  // name, so the query throws and an unguarded await here would abandon the
+  // whole flow before anything asked for a position. What genuinely prompts is
+  // getCurrentPositionAsync, so treat the query as a hint only — use it to
+  // light the blue dot up front when permission is already granted, and let
+  // centreOnUser do the real asking.
   async function checkLocationPermission() {
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status === 'granted') {
-      setShowUserLocation(true);
-      centreOnUser();
-      return;
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') setShowUserLocation(true);
+      // Explicitly refused before — re-asking can't re-prompt, so don't.
+      if (status === 'denied') return;
+    } catch {
+      // Permissions API unavailable (Safari) — fall through and just ask.
     }
-    if (status === 'undetermined') {
-      // react-native-web's Alert.alert() is a no-op — there's no custom
-      // dialog on web, so just request directly. The browser shows its
-      // own native "use your location?" prompt.
-      requestPermission();
-    }
+    centreOnUser();
   }
 
-  async function requestPermission() {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === 'granted') {
-      setShowUserLocation(true);
-      centreOnUser();
-    }
-  }
+  // animateCamera is a no-op until Google has actually constructed the map,
+  // and the fix is not simply "wait for the position": expo-location asks the
+  // browser with maximumAge:Infinity, so a phone holding a cached fix resolves
+  // this almost instantly — routinely beating the map's script + tile load, at
+  // which point the camera move is dropped and the map is left on the default
+  // Singapore-wide region. Park the target instead and replay it once the map
+  // reports ready, so whichever of the two finishes last still centres us.
+  const pendingCentre = useRef<{ lat: number; lng: number } | null>(null);
+
+  const moveTo = useCallback(
+    (lat: number, lng: number) => {
+      if (!mapReady || !mapRef.current) {
+        pendingCentre.current = { lat, lng };
+        return;
+      }
+      // Explicit zoom (not animateToRegion/fitBounds — see handleMarkerPress
+      // for why fitBounds-derived zoom is unreliable on web) so opening the
+      // app zooms straight to street level.
+      mapRef.current.animateCamera(
+        { center: { latitude: lat, longitude: lng }, zoom: 15 },
+        { duration: 800 }
+      );
+    },
+    [mapReady]
+  );
+
+  useEffect(() => {
+    if (!mapReady || !pendingCentre.current) return;
+    const { lat, lng } = pendingCentre.current;
+    pendingCentre.current = null;
+    moveTo(lat, lng);
+  }, [mapReady, moveTo]);
 
   async function centreOnUser() {
-    // animateCamera with an explicit zoom (not animateToRegion/fitBounds —
-    // see handleMarkerPress for why fitBounds-derived zoom is unreliable
-    // on web) so opening the app zooms straight to street level.
-    const moveTo = (lat: number, lng: number) =>
-      mapRef.current?.animateCamera({ center: { latitude: lat, longitude: lng }, zoom: 15 }, { duration: 800 });
-
     setLocatingUser(true);
     try {
       // Use cached position instantly if available
@@ -245,7 +270,10 @@ export default function MapScreen() {
       // No cache — a fresh GPS fix is what's slow on some Android browsers,
       // hence the "finding your location" pill this is guarding.
       const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setShowUserLocation(true);
       moveTo(fresh.coords.latitude, fresh.coords.longitude);
+    } catch {
+      // Denied or unavailable — keep the Singapore-wide default view.
     } finally {
       setLocatingUser(false);
     }

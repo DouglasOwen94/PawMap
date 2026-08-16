@@ -30,7 +30,18 @@ export default function Root({ children }: { children: React.ReactNode }) {
             on iPhone/iPad. */}
         <link rel="apple-touch-icon" href="/PawMap/icons/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        {/* Deliberately NOT "black-translucent", which is what caused a grey
+            band under the tab bar on installed iOS home-screen apps.
+            black-translucent draws the page across the entire screen and lets
+            the status bar float over it, but iOS still sizes the viewport as
+            though the status bar took up room — so the document is effectively
+            shifted up under the status bar and comes up exactly one status-bar
+            height short at the bottom, leaving a strip nothing paints into.
+            No height rule fixes that; the viewport itself is the wrong size.
+            "default" lays the page out below the status bar, so the viewport
+            matches what's actually drawable and the tab bar reaches the bottom.
+            Apple has also deprecated black-translucent and plans to drop it. */}
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="PawMap" />
 
         {/* Two different background colours, on purpose.
@@ -38,15 +49,10 @@ export default function Root({ children }: { children: React.ReactNode }) {
             `body` is the app surface — it's what shows during the moment
             before React has painted anything.
 
-            `html` paints the *canvas*: the area outside the layout viewport,
-            which on an installed iOS PWA includes the band reserved for the
-            home indicator along the bottom edge. iOS does not extend the
-            layout viewport into that band, and reports
-            env(safe-area-inset-bottom) as 0 there, so React Navigation's tab
-            bar adds no padding and never paints into it — leaving a strip of
-            bare canvas under the tab bar. We can't lay content into it, but
-            we can colour it: white matches the tab bar sitting directly above,
-            so the strip reads as part of the bar instead of a grey gap. */}
+            `html` paints the canvas: anything outside the viewport, including
+            whatever iOS reserves along the bottom edge for the home indicator.
+            White matches the tab bar directly above it, so any such strip
+            reads as part of the bar rather than as a gap. */}
         <style
           id="pawmap-bg"
           dangerouslySetInnerHTML={{
