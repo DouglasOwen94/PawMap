@@ -33,35 +33,38 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="PawMap" />
 
+        {/* Two different background colours, on purpose.
+
+            `body` is the app surface — it's what shows during the moment
+            before React has painted anything.
+
+            `html` paints the *canvas*: the area outside the layout viewport,
+            which on an installed iOS PWA includes the band reserved for the
+            home indicator along the bottom edge. iOS does not extend the
+            layout viewport into that band, and reports
+            env(safe-area-inset-bottom) as 0 there, so React Navigation's tab
+            bar adds no padding and never paints into it — leaving a strip of
+            bare canvas under the tab bar. We can't lay content into it, but
+            we can colour it: white matches the tab bar sitting directly above,
+            so the strip reads as part of the bar instead of a grey gap. */}
         <style
           id="pawmap-bg"
-          dangerouslySetInnerHTML={{ __html: `html,body{background-color:#F7F7F5}` }}
+          dangerouslySetInnerHTML={{
+            __html: `html{background-color:#FFFFFF}body{background-color:#F7F7F5}`,
+          }}
         />
 
-        {/* Full-screen height fix (iOS Safari / installed PWA).
-            expo-router's ScrollViewStyleReset (above) sets html,body,#root to
-            height:100% — a percentage of the browser's *initial* viewport.
-            Android Chrome resizes that layout viewport as its URL bar
-            shows/hides, so 100% always tracks the visible area. iOS Safari
-            does not: 100% stays pinned to whichever viewport was current on
-            first paint, so the app is either too short (grey/white gap at
-            the bottom, tab bar cut off) or too tall, depending on whether
-            the address bar was collapsed at load. `dvh` alone doesn't fully
-            fix this either — some iOS Safari builds report a `dvh` that
-            excludes the address bar even while it's hidden, leaving the same
-            gap. Recomputing the real pixel height in JS on load/resize and
-            driving height from that is the one approach that has held up
-            across iOS Safari versions. */}
+        {/* expo-router's ScrollViewStyleReset (above) sets html,body,#root to
+            height:100%, a percentage of the *initial* viewport. In a browser
+            tab, iOS Safari keeps that pinned to the viewport as it was on
+            first paint rather than tracking the collapsing address bar, so
+            the app ends up slightly too short or too tall. `dvh` tracks the
+            dynamic viewport instead. It deliberately ignores the on-screen
+            keyboard, which is what we want — the venue sheet runs its own
+            keyboard offset animation and would fight a shrinking root. */}
         <style
           id="pawmap-viewport-fix"
-          dangerouslySetInnerHTML={{
-            __html: `html,body,#root{height:100dvh;height:calc(var(--app-vh, 1vh) * 100)}`,
-          }}
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){function setVh(){var h=(window.visualViewport?window.visualViewport.height:window.innerHeight);document.documentElement.style.setProperty('--app-vh',(h*0.01)+'px');}setVh();window.addEventListener('resize',setVh);window.addEventListener('orientationchange',setVh);if(window.visualViewport){window.visualViewport.addEventListener('resize',setVh);}})();`,
-          }}
+          dangerouslySetInnerHTML={{ __html: `html,body,#root{height:100dvh}` }}
         />
       </head>
       <body>{children}</body>
