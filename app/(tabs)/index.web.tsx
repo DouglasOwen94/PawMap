@@ -232,30 +232,36 @@ export default function MapScreen() {
   // Singapore-wide region. Park the target instead and replay it once the map
   // reports ready, so whichever of the two finishes last still centres us.
   const pendingCentre = useRef<{ lat: number; lng: number } | null>(null);
+  // Readiness is tracked in a ref as well as state because centreOnUser runs
+  // once on mount and would otherwise capture the first render's value forever.
+  // That closure never updates, so a slow fix — Android, where there's usually
+  // no cached position — would still be treated as "map not ready" long after
+  // it was, park itself, and never be replayed. The state drives the skeleton;
+  // the ref is what the camera logic reads.
+  const mapReadyRef = useRef(false);
 
-  const moveTo = useCallback(
-    (lat: number, lng: number) => {
-      if (!mapReady || !mapRef.current) {
-        pendingCentre.current = { lat, lng };
-        return;
-      }
-      // Explicit zoom (not animateToRegion/fitBounds — see handleMarkerPress
-      // for why fitBounds-derived zoom is unreliable on web) so opening the
-      // app zooms straight to street level.
-      mapRef.current.animateCamera(
-        { center: { latitude: lat, longitude: lng }, zoom: 15 },
-        { duration: 800 }
-      );
-    },
-    [mapReady]
-  );
+  const moveTo = useCallback((lat: number, lng: number) => {
+    if (!mapReadyRef.current || !mapRef.current) {
+      pendingCentre.current = { lat, lng };
+      return;
+    }
+    // Explicit zoom (not animateToRegion/fitBounds — see handleMarkerPress
+    // for why fitBounds-derived zoom is unreliable on web) so opening the
+    // app zooms straight to street level.
+    mapRef.current.animateCamera(
+      { center: { latitude: lat, longitude: lng }, zoom: 15 },
+      { duration: 800 }
+    );
+  }, []);
 
-  useEffect(() => {
-    if (!mapReady || !pendingCentre.current) return;
+  const handleMapReady = useCallback(() => {
+    mapReadyRef.current = true;
+    setMapReady(true);
+    if (!pendingCentre.current) return;
     const { lat, lng } = pendingCentre.current;
     pendingCentre.current = null;
     moveTo(lat, lng);
-  }, [mapReady, moveTo]);
+  }, [moveTo]);
 
   async function centreOnUser() {
     setLocatingUser(true);
@@ -293,7 +299,7 @@ export default function MapScreen() {
         moveOnMarkerPress={false}
         customMapStyle={MAP_STYLE}
         googleMapsApiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_KEY}
-        onMapReady={() => setMapReady(true)}
+        onMapReady={handleMapReady}
         onPress={handleMapPress}
         options={{
           zoomControl: false,

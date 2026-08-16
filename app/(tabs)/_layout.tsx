@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { AddPlaceTabIcon, MapTabIcon, SavedTabIcon } from '@/components/TabIcons';
+import { Font } from '@/constants/fonts';
 
 export default function TabLayout() {
   return (
@@ -11,6 +12,16 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarActiveTintColor: '#0A0A0A',
         tabBarInactiveTintColor: '#ABABAB',
+        // lineHeight is set explicitly, not left to the default: the label
+        // renders with numberOfLines={1}, which on web becomes an
+        // overflow-hidden line box sized by the browser's default line
+        // height. That box is a shade too short for Urbanist's descenders,
+        // so the tail of the "p" in "Map" was being sliced off.
+        tabBarLabelStyle: {
+          fontFamily: Font.medium,
+          fontSize: 11,
+          lineHeight: 15,
+        },
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopColor: '#E8E8E4',
