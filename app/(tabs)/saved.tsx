@@ -26,13 +26,20 @@ function SavedVenueCard({ venue, onUnsave, onPress }: CardProps) {
   return (
     <TouchableOpacity style={styles.card} onPress={() => onPress(venue)} activeOpacity={0.88}>
       <View style={styles.photoArea}>
-        <Image
-          source={{ uri: venue.cover_photo_url }}
-          style={StyleSheet.absoluteFillObject}
-          contentFit="cover"
-          transition={300}
-          placeholder={{ blurhash: PHOTO_PLACEHOLDER }}
-        />
+        {venue.cover_photo_url ? (
+          <Image
+            source={{ uri: venue.cover_photo_url }}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            transition={300}
+            placeholder={{ blurhash: PHOTO_PLACEHOLDER }}
+          />
+        ) : (
+          <View style={styles.photoComingSoon}>
+            <Ionicons name="image-outline" size={20} color="#ABABAB" />
+            <Text style={styles.photoComingSoonText}>Photo coming soon</Text>
+          </View>
+        )}
         <TouchableOpacity
           style={styles.heartButton}
           onPress={() => onUnsave(venue)}
@@ -226,6 +233,17 @@ const styles = StyleSheet.create({
   photoArea: {
     height: 160,
     backgroundColor: '#F7F7F5',
+  },
+  photoComingSoon: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  photoComingSoonText: {
+    fontSize: 12,
+    fontFamily: Font.medium,
+    color: '#ABABAB',
   },
   heartButton: {
     position: 'absolute',

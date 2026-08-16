@@ -345,7 +345,14 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 ].filter(p => !!p.uri) as { uri: string; label: string | null }[];
                 return (
                   <View style={styles.photoContainer}>
-                    <PhotoStrip photos={photos} />
+                    {photos.length > 0 ? (
+                      <PhotoStrip photos={photos} />
+                    ) : (
+                      <View style={styles.photoComingSoon}>
+                        <Ionicons name="image-outline" size={22} color="#ABABAB" />
+                        <Text style={styles.photoComingSoonText}>Photo coming soon</Text>
+                      </View>
+                    )}
                     {photos.length > 1 && (
                       <View style={styles.dotsRow}>
                         {photos.map((_, i) => (
@@ -715,6 +722,8 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 40 },
 
   photoContainer: { height: 200, backgroundColor: '#F7F7F5', overflow: 'hidden' },
+  photoComingSoon: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  photoComingSoonText: { fontSize: 13, fontFamily: Font.medium, color: '#ABABAB' },
   dotsRow: {
     position: 'absolute', bottom: 10, left: 0, right: 0,
     flexDirection: 'row', justifyContent: 'center', gap: 5,
