@@ -86,6 +86,7 @@ export default function MapScreen() {
   const [showUserLocation, setShowUserLocation] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [locatingUser, setLocatingUser] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<FilterKey[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const filteredVenues = useMemo(
@@ -263,26 +264,42 @@ export default function MapScreen() {
     moveTo(lat, lng);
   }, [moveTo]);
 
-  async function centreOnUser() {
+  // `forceFresh` skips the cached fix: on first load a cached position is what
+  // makes the map land somewhere sensible immediately, but when the user taps
+  // the locate button they've usually moved, so re-centring on a stale point
+  // would look like the button did nothing.
+  async function centreOnUser(forceFresh = false): Promise<boolean> {
     setLocatingUser(true);
     try {
-      // Use cached position instantly if available
-      const last = await Location.getLastKnownPositionAsync();
-      if (last) {
-        moveTo(last.coords.latitude, last.coords.longitude);
-        return;
+      if (!forceFresh) {
+        // Use cached position instantly if available
+        const last = await Location.getLastKnownPositionAsync();
+        if (last) {
+          moveTo(last.coords.latitude, last.coords.longitude);
+          return true;
+        }
       }
 
-      // No cache — a fresh GPS fix is what's slow on some Android browsers,
-      // hence the "finding your location" pill this is guarding.
+      // A fresh GPS fix is what's slow on some Android browsers, hence the
+      // "finding your location" pill this is guarding.
       const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       setShowUserLocation(true);
       moveTo(fresh.coords.latitude, fresh.coords.longitude);
+      return true;
     } catch {
-      // Denied or unavailable — keep the Singapore-wide default view.
+      // Denied or unavailable — keep whatever view we're on.
+      return false;
     } finally {
       setLocatingUser(false);
     }
+  }
+
+  async function handleLocatePress() {
+    setLocationError(null);
+    const located = await centreOnUser(true);
+    if (located) return;
+    setLocationError('Couldn’t get your location. Check location access for this site.');
+    setTimeout(() => setLocationError(null), 4000);
   }
 
   return (
@@ -392,6 +409,29 @@ export default function MapScreen() {
         </View>
       )}
 
+      {locationError && (
+        <View style={[styles.errorBanner, { top: insets.top + 12 }]}>
+          <Text style={styles.errorBannerText}>{locationError}</Text>
+        </View>
+      )}
+
+      {/* Auto-centring on load can lose the race with a slow GPS fix, or be
+          skipped entirely if the browser prompt is dismissed — this is the
+          way back to your own location without reloading the page. */}
+      <TouchableOpacity
+        style={styles.locateBtn}
+        onPress={handleLocatePress}
+        activeOpacity={0.8}
+        disabled={locatingUser}
+        accessibilityRole="button"
+        accessibilityLabel="Centre map on my location"
+        accessibilityState={{ busy: locatingUser, disabled: locatingUser }}
+      >
+        {locatingUser
+          ? <ActivityIndicator size="small" color="#1A1A1A" />
+          : <Ionicons name="locate" size={20} color="#1A1A1A" />}
+      </TouchableOpacity>
+
       <FilterChips active={activeFilters} onSelect={handleFilterSelect} />
 
       <VenueBottomSheet
@@ -443,6 +483,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: Font.medium,
     color: '#ABABAB',
+  },
+  // Sits clear of the filter chips, which are pinned at bottom: 32.
+  // Border rather than elevation, per the shadow rule for round icon buttons.
+  locateBtn: {
+    position: 'absolute',
+    right: 16,
+    bottom: 88,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusPill: {
     position: 'absolute',

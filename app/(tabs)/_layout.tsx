@@ -1,10 +1,23 @@
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { AddPlaceTabIcon, MapTabIcon, SavedTabIcon } from '@/components/TabIcons';
 import { Font } from '@/constants/fonts';
 
+// React Navigation sizes the bar at a fixed 49pt plus the safe-area inset,
+// which leaves too little room under a 24pt icon for a label with descenders —
+// the tail of the "p" in "Map" was cut off by the bar's own bottom edge. Height
+// has to be set here rather than nudging the label, because the bar is what
+// clips: making the label taller alone just pushed more of it out of view.
+// getTabBarHeight returns a custom height verbatim and stops adding the inset
+// itself, so the inset has to be added back here or the bar rides up over the
+// home indicator on gesture-nav devices.
+const TAB_BAR_CONTENT_HEIGHT = 60;
+
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -12,11 +25,6 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarActiveTintColor: '#0A0A0A',
         tabBarInactiveTintColor: '#ABABAB',
-        // lineHeight is set explicitly, not left to the default: the label
-        // renders with numberOfLines={1}, which on web becomes an
-        // overflow-hidden line box sized by the browser's default line
-        // height. That box is a shade too short for Urbanist's descenders,
-        // so the tail of the "p" in "Map" was being sliced off.
         tabBarLabelStyle: {
           fontFamily: Font.medium,
           fontSize: 11,
@@ -26,6 +34,7 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopColor: '#E8E8E4',
           borderTopWidth: 1,
+          height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
         },
       }}
     >
