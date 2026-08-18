@@ -324,11 +324,12 @@
 
         <!-- Manage section -->
         <p class="sidebar-section-label">Manage</p>
-        <button onclick="showReportsView()"       id="nav-reports" class="sidebar-btn">Reports</button>
-        <button onclick="showPendingPhotosView()" id="nav-photos"  class="sidebar-btn">
+        <button onclick="showReportsView()"       id="nav-reports"  class="sidebar-btn">Reports</button>
+        <button onclick="showPendingPhotosView()" id="nav-photos"   class="sidebar-btn">
           Photos <span id="pending-photos-badge" style="margin-left:3px;padding:1px 6px;border-radius:100px;background:var(--orange-solid);color:var(--on-solid);font-size:10px;font-weight:700;display:none;"></span>
         </button>
-        <button onclick="showTagsView()"          id="nav-tags"    class="sidebar-btn">Tags</button>
+        <button onclick="showReverifyView()"      id="nav-reverify" class="sidebar-btn">Needs Reverify</button>
+        <button onclick="showTagsView()"          id="nav-tags"     class="sidebar-btn">Tags</button>
       </nav>
 
       <!-- Bottom actions -->
@@ -630,18 +631,40 @@
     return new Date(v.last_verified_date) >= ago60;
   }
 
+  // Mirrors utils/venue.ts's EXPIRY_DAYS on the app side — a venue's pin
+  // goes grey and non-tappable, and the Indoor Verified badge disappears,
+  // once this many days have passed since it was last checked in person.
+  // Keep this in sync if that value ever changes.
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const EXPIRY_DAYS = 90;
+  const REVERIFY_LOOKAHEAD_DAYS = 30; // "due soon" window for Needs Reverification
+
+  // A venue with no last_verified_date isn't expired — it's just never
+  // been dated (same rule as isExpiredVenue in utils/venue.ts).
+  function daysSinceVerified(v) {
+    return Math.floor((Date.now() - new Date(v.last_verified_date).getTime()) / MS_PER_DAY);
+  }
+  function isExpiredVenue(v) {
+    return v.last_verified_date != null && daysSinceVerified(v) > EXPIRY_DAYS;
+  }
+
   function getMarkerColor(v) {
-    if (v.status !== 'live') return '#ABABAB';
+    // Expired is checked alongside "not live" — same grey, same reason:
+    // the real app won't show this pin as trustworthy either way. Previously
+    // this only greyed out non-live venues, so an expired-but-still-live
+    // venue kept its normal color here even though the public map already
+    // greys it out and hides its badge (utils/venue.ts's isExpiredVenue).
+    if (v.status !== 'live' || isExpiredVenue(v)) return '#ABABAB';
     if (isVerifiedVenue(v)) return '#22C55E';
     if (v.seating_type === 'outdoor') return '#F97316';
     return '#0A0A0A';
   }
 
   function getLegendType(v) {
+    if (v.status !== 'live' || isExpiredVenue(v)) return 'other';
     if (isVerifiedVenue(v)) return 'verified';
-    if (v.status === 'live' && v.seating_type === 'outdoor') return 'outdoor';
-    if (v.status === 'live') return 'indoor';
-    return 'other';
+    if (v.seating_type === 'outdoor') return 'outdoor';
+    return 'indoor';
   }
 
   function setLegendFilter(type) {
@@ -918,6 +941,7 @@
     renderStatsCard(); renderSidebar(); renderPendingPhotosBadge();
     if (currentView === 'tags') { showContentView(); renderTagsView(); }
     else if (currentView === 'reports') { showContentView(); renderReportsView(); }
+    else if (currentView === 'reverify') { showContentView(); renderReverifyView(); }
     else if (currentView === 'pending-photos') showPendingPhotosView();
     else { venueListMode = true; showListSplitView(); loadVenueMarkers(); renderVenueList(); }
   }
@@ -1096,6 +1120,14 @@
     }
     const photosBtn = document.getElementById('nav-photos');
     if (photosBtn) photosBtn.className = 'sidebar-btn' + (currentView === 'pending-photos' ? ' active' : '');
+
+    const expiredCount = venues.filter(v => v.status === 'live' && isExpiredVenue(v)).length;
+    const reverifyBtn = document.getElementById('nav-reverify');
+    if (reverifyBtn) {
+      reverifyBtn.className = 'sidebar-btn' + (currentView === 'reverify' ? ' active' : '');
+      reverifyBtn.innerHTML = 'Needs Reverify' + (expiredCount > 0
+        ? ` <span style="display:inline-block;padding:1px 6px;border-radius:100px;font-size:10px;font-weight:700;background:var(--red-solid);color:var(--on-solid);margin-left:3px;">${expiredCount}</span>` : '');
+    }
   }
 
   // ── Pending photos view ───────────────────────────────────────
@@ -1947,6 +1979,74 @@
     if (error) { alert('Error: ' + error.message); return; }
     const idx = reports.findIndex(r => r.id === id); if (idx !== -1) reports[idx].resolved = true;
     renderSidebar(); renderReportsView();
+  }
+
+  // ── Needs Reverification ─────────────────────────────────────
+  function showReverifyView() { currentView = 'reverify'; venueListMode = false; closePanel(); showContentView(); renderSidebar(); renderReverifyView(); }
+
+  function renderReverifyView() {
+    // last_verified_date == null is excluded on purpose — "never dated" is
+    // not the same as "expired" (CLAUDE.md is explicit about this), and a
+    // pending/rejected venue isn't shown on the live map at all so there's
+    // nothing there to re-verify yet.
+    const candidates = venues.filter(v => v.status === 'live' && v.last_verified_date);
+    const expired = candidates.filter(isExpiredVenue).sort((a, b) => daysSinceVerified(b) - daysSinceVerified(a));
+    const dueSoon = candidates
+      .filter(v => !isExpiredVenue(v) && EXPIRY_DAYS - daysSinceVerified(v) <= REVERIFY_LOOKAHEAD_DAYS)
+      .sort((a, b) => daysSinceVerified(b) - daysSinceVerified(a));
+
+    document.getElementById('content-container').innerHTML = `
+      <div style="max-width:680px;">
+        <div style="margin-bottom:20px;">
+          <h2 style="font-weight:800;font-size:20px;color:var(--text);margin-bottom:4px;">Needs Reverification</h2>
+          <p style="font-size:14px;color:var(--text2);">Live venues due for another in-person visit — verification expires ${EXPIRY_DAYS} days after the last check.</p>
+        </div>
+        ${!expired.length && !dueSoon.length
+          ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:12px;color:var(--text3);"><span style="font-size:36px;">✅</span><span style="font-size:14px;">Everything's current — nothing due within ${REVERIFY_LOOKAHEAD_DAYS} days</span></div>`
+          : `${expired.length ? `
+              <p style="font-size:11px;font-weight:700;color:var(--red-text);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;">Expired — pin greyed out on the map (${expired.length})</p>
+              ${expired.map(v => reverifyCard(v, true)).join('')}` : ''}
+             ${dueSoon.length ? `
+              <p style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin:${expired.length ? '20px' : '0'} 0 10px;">Due within ${REVERIFY_LOOKAHEAD_DAYS} days (${dueSoon.length})</p>
+              ${dueSoon.map(v => reverifyCard(v, false)).join('')}` : ''}`}
+      </div>`;
+  }
+
+  function reverifyCard(v, expired) {
+    const days = daysSinceVerified(v);
+    const date = new Date(v.last_verified_date).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+    const pill = expired
+      ? `<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:100px;border:1px solid;background:var(--red-bg);color:var(--red-text);border-color:var(--red-border);">Expired ${days - EXPIRY_DAYS}d ago</span>`
+      : `<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:100px;border:1px solid;background:var(--orange-bg);color:var(--orange-text);border-color:var(--orange-border);">${EXPIRY_DAYS - days}d left</span>`;
+    return `
+      <div style="background:var(--surface);border:1px solid ${expired ? 'var(--red-border)' : 'var(--border)'};border-radius:10px;padding:14px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;flex-wrap:wrap;">
+            <span style="font-size:14px;font-weight:700;color:var(--text);">${h(v.name)}</span>
+            ${pill}
+          </div>
+          <p style="font-size:12px;color:var(--text2);">${[v.neighbourhood, v.city].filter(Boolean).map(h).join(' · ')} · Last verified ${date}</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button onclick="markVerifiedToday(${v.id})" style="padding:6px 12px;border-radius:8px;background:var(--green-solid);border:none;color:var(--on-solid);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:'Urbanist',sans-serif;">✓ Verified today</button>
+          <button onclick="openVenue(${v.id})" style="padding:6px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:'Urbanist',sans-serif;">Edit</button>
+        </div>
+      </div>`;
+  }
+
+  // One-click re-stamp for the common case: the founder physically visited
+  // and nothing else about the listing needs to change. "Edit" (above) is
+  // still there for when something *does* need updating first.
+  async function markVerifiedToday(id) {
+    const updates = { last_verified_date: today() };
+    const { error } = await db.from('venues').update(updates).eq('id', id);
+    if (error) { showToast('Error: ' + error.message); return; }
+    patchVenue(id, updates);
+    renderStatsCard(); renderSidebar();
+    if (currentView === 'reverify') renderReverifyView();
+    if (venueListMode) renderVenueList();
+    loadVenueMarkers();
+    showToast('✓ Marked verified today');
   }
 
   // ── Add Place ─────────────────────────────────────────────────
