@@ -246,16 +246,14 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
 
   function openGoogleMaps() {
     if (!venue) return;
-    const query = encodeURIComponent(`${venue.name}, ${venue.neighbourhood}, Singapore`);
-    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`).catch(() =>
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${venue.lat},${venue.lng}`).catch(() =>
       Alert.alert("Couldn't open Google Maps", 'Make sure the app or a browser is available on your device.')
     );
   }
 
   function openWaze() {
     if (!venue) return;
-    const query = encodeURIComponent(`${venue.name}, ${venue.neighbourhood}, Singapore`);
-    Linking.openURL(`https://waze.com/ul?q=${query}&navigate=yes`).catch(() =>
+    Linking.openURL(`https://waze.com/ul?ll=${venue.lat},${venue.lng}&navigate=yes`).catch(() =>
       Alert.alert("Couldn't open Waze", 'Waze may not be installed on your device.')
     );
   }
