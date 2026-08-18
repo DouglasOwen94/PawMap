@@ -149,6 +149,24 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
 
+    /* Edit-panel field groups. Plain <details>/<summary> rather than a
+       hand-rolled accordion — arrow-key-free, but Enter/Space and a screen
+       reader's "expanded" state come from the browser for nothing. Splits
+       the ~20 controls that used to render as one flat list into labeled,
+       independently collapsible groups (open state is set per-group in
+       renderEditPanel, not fixed here). */
+    .edit-section { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .edit-section-summary {
+      list-style: none; cursor: pointer; padding: 11px 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text2);
+      background: var(--surface2); user-select: none;
+    }
+    .edit-section-summary::-webkit-details-marker { display: none; }
+    .edit-section-summary::after { content: '▾'; font-size: 10px; color: var(--text3); flex-shrink: 0; transition: transform 0.15s; }
+    .edit-section[open] > .edit-section-summary::after { transform: rotate(180deg); }
+    .edit-section-summary:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+    .edit-section-body { padding: 16px 14px; display: flex; flex-direction: column; gap: 14px; }
+
     .venue-card { transition: border-color 0.15s, background 0.15s; }
     .venue-card:hover { border-color: var(--border2) !important; background: var(--surface2) !important; }
     .venue-card.selected { border-color: var(--text) !important; box-shadow: 0 0 0 2px var(--text); }
@@ -168,9 +186,30 @@
 
     .field-label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
 
-    /* CSV modal */
-    #csv-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; align-items: center; justify-content: center; }
-    #csv-modal.open { display: flex; }
+    /* Shared open/close motion for the CSV Import, Add Place and Find Place
+       IDs modals — same 180ms curve as .edit-panel's 350ms transform, just
+       faster since these animate in place rather than sliding off-screen.
+       display stays "flex" at all times; opacity/visibility do the hiding,
+       so a fixed-position element with nothing to transition *from* isn't
+       needed (the classic "display:none can't transition" problem), and
+       visibility keeps it out of the tab order and screen-reader tree while
+       closed without the transition being able to be skipped on open. */
+    .overlay-modal {
+      position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; visibility: hidden; pointer-events: none;
+      transition: opacity 180ms cubic-bezier(0.32,0.72,0,1), visibility 0s linear 180ms;
+    }
+    .overlay-modal.open {
+      opacity: 1; visibility: visible; pointer-events: auto;
+      transition: opacity 180ms cubic-bezier(0.32,0.72,0,1);
+    }
+    .overlay-modal .modal-box { transform: scale(0.96) translateY(8px); transition: transform 180ms cubic-bezier(0.32,0.72,0,1); }
+    .overlay-modal.open .modal-box { transform: scale(1) translateY(0); }
+    @media (prefers-reduced-motion: reduce) {
+      .overlay-modal, .overlay-modal .modal-box { transition: none; }
+    }
+
     #csv-modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.12); }
 
     .csv-table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -214,8 +253,11 @@
     .legend-filter-btn.active { background: var(--surface2); outline: 1px solid var(--border2); }
 
     /* Toast */
-    .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(16px); background: #0A0A0A; color: #FFF; padding: 10px 22px; border-radius: 100px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity 0.28s, transform 0.28s cubic-bezier(0.32,0.72,0,1); z-index: 500; white-space: nowrap; pointer-events: none; }
-    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(16px); background: #0A0A0A; color: #FFF; padding: 10px 22px; border-radius: 100px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity 0.28s, transform 0.28s cubic-bezier(0.32,0.72,0,1); z-index: 500; white-space: nowrap; pointer-events: none; display: flex; align-items: center; gap: 12px; }
+    /* Only clickable while visible, so a hidden toast can't sit on top of
+       whatever's underneath it and swallow a click. */
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
+    .toast-action { background: none; border: none; padding: 0; color: #7DA2F5; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; font-family: 'Urbanist', sans-serif; }
 
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
@@ -321,7 +363,10 @@
           <p style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:9px;">Legend</p>
           <div style="display:flex;flex-direction:column;gap:3px;">
             <button class="legend-filter-btn" id="legend-verified" onclick="setLegendFilter('verified')">
-              <span style="width:10px;height:10px;border-radius:50%;background:#22C55E;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.15);flex-shrink:0;"></span>
+              <!-- Diamond, not a dot: the map pin for Verified venues is the
+                   same diamond shape, so this is still tellable from Outdoor/
+                   Indoor without relying on color (WCAG 1.4.1). -->
+              <span style="width:9px;height:9px;transform:rotate(45deg);background:#22C55E;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.15);flex-shrink:0;"></span>
               <span style="font-size:12px;color:var(--text2);">Indoor Verified</span>
             </button>
             <button class="legend-filter-btn" id="legend-outdoor" onclick="setLegendFilter('outdoor')">
@@ -357,8 +402,8 @@
   </div>
 
   <!-- Place IDs Modal -->
-  <div id="place-ids-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center;">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:90%;max-width:500px;max-height:75vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.12);">
+  <div id="place-ids-modal" class="overlay-modal">
+    <div class="modal-box" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:90%;max-width:500px;max-height:75vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.12);">
       <div style="padding:24px 24px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-shrink:0;">
         <div>
           <h2 style="font-weight:700;font-size:18px;color:var(--text);margin-bottom:3px;">Find Place IDs</h2>
@@ -371,8 +416,8 @@
   </div>
 
   <!-- Add Place Modal -->
-  <div id="add-place-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center;">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:90%;max-width:540px;max-height:85vh;overflow-y:auto;padding:28px;display:flex;flex-direction:column;gap:18px;box-shadow:0 20px 60px rgba(0,0,0,0.12);">
+  <div id="add-place-modal" class="overlay-modal">
+    <div class="modal-box" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:90%;max-width:540px;max-height:85vh;overflow-y:auto;padding:28px;display:flex;flex-direction:column;gap:18px;box-shadow:0 20px 60px rgba(0,0,0,0.12);">
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div>
           <h2 style="font-weight:700;font-size:18px;color:var(--text);">Add a Place</h2>
@@ -444,8 +489,8 @@
   </div>
 
   <!-- CSV Modal -->
-  <div id="csv-modal">
-    <div id="csv-modal-box">
+  <div id="csv-modal" class="overlay-modal">
+    <div id="csv-modal-box" class="modal-box">
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div>
           <h2 style="font-weight:700;font-size:18px;color:var(--text);">Import CSV</h2>
@@ -478,6 +523,23 @@
       </div>
     </div>
   </div>
+
+  <!-- Confirm Modal — a styled stand-in for window.confirm(), reserved for
+       genuinely irreversible actions (Delete Venue). Reversible actions
+       (Reject Venue) skip this in favor of an Undo toast instead — see
+       askConfirm()/resolveConfirm() and rejectVenue(). -->
+  <div id="confirm-modal" class="overlay-modal">
+    <div class="modal-box" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:90%;max-width:380px;padding:24px;display:flex;flex-direction:column;gap:18px;box-shadow:0 20px 60px rgba(0,0,0,0.12);">
+      <div>
+        <h2 id="confirm-modal-title" style="font-weight:800;font-size:17px;color:var(--text);margin-bottom:6px;"></h2>
+        <p id="confirm-modal-body" style="font-size:13.5px;color:var(--text2);line-height:1.5;"></p>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button id="confirm-modal-cancel" onclick="resolveConfirm(false)" class="btn-secondary" style="flex:1;">Cancel</button>
+        <button id="confirm-modal-confirm" onclick="resolveConfirm(true)" class="btn-danger" style="flex:1;"></button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -486,14 +548,17 @@
   const STORAGE_BUCKET = 'venue-photos';
   const CSV_COLUMNS   = ['name','city','neighbourhood','address','seating_type','dog_sizes_allowed','pet_menu','leash_free','google_place_id','notes'];
 
-  // Apply saved theme before render to avoid flash
+  // Apply saved theme before render to avoid flash. If the admin has never
+  // toggled it manually, follow the OS/browser's own dark-mode setting
+  // instead of always defaulting to light — this stays live (re-checked
+  // every load) right up until an explicit click in toggleDarkMode() locks
+  // in a preference via localStorage.
   (function() {
-    const t = localStorage.getItem('pawmap-theme');
-    if (t) {
-      document.documentElement.setAttribute('data-theme', t);
-      const btn = document.getElementById('dark-mode-btn');
-      if (btn) btn.textContent = t === 'dark' ? '☀ Light Mode' : '☽ Dark Mode';
-    }
+    const saved = localStorage.getItem('pawmap-theme');
+    const t = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', t);
+    const btn = document.getElementById('dark-mode-btn');
+    if (btn) btn.textContent = t === 'dark' ? '☀ Light Mode' : '☽ Dark Mode';
   })();
 
   const { createClient } = supabase;
@@ -556,17 +621,24 @@
     loadVenueMarkers();
   }
 
+  // Single source of truth for "is this the core trust signal" — was
+  // previously duplicated (and re-computed slightly differently) between
+  // getMarkerColor and getLegendType.
+  function isVerifiedVenue(v) {
+    if (v.status !== 'live' || !v.indoor_verified || !v.last_verified_date) return false;
+    const ago60 = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+    return new Date(v.last_verified_date) >= ago60;
+  }
+
   function getMarkerColor(v) {
     if (v.status !== 'live') return '#ABABAB';
-    const ago60 = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-    if (v.indoor_verified && v.last_verified_date && new Date(v.last_verified_date) >= ago60) return '#22C55E';
+    if (isVerifiedVenue(v)) return '#22C55E';
     if (v.seating_type === 'outdoor') return '#F97316';
     return '#0A0A0A';
   }
 
   function getLegendType(v) {
-    const ago60 = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-    if (v.status === 'live' && v.indoor_verified && v.last_verified_date && new Date(v.last_verified_date) >= ago60) return 'verified';
+    if (isVerifiedVenue(v)) return 'verified';
     if (v.status === 'live' && v.seating_type === 'outdoor') return 'outdoor';
     if (v.status === 'live') return 'indoor';
     return 'other';
@@ -595,8 +667,16 @@
     return matchesFilter && matchesLegend && matchesSearch;
   }
 
+  // Diamond has the same "radius" (1 unit) as google.maps.SymbolPath.CIRCLE,
+  // so it drops in at the same scale values already used everywhere below.
+  // Verified pins get this shape instead of a circle — the map's core trust
+  // signal (per CLAUDE.md) shouldn't rely on color alone to be told apart
+  // from the Indoor/Outdoor/Other pins at map scale.
+  const VERIFIED_MARKER_PATH = 'M 0,-1 L 1,0 L 0,1 L -1,0 Z';
+
   function markerIcon(v, scale, strokeWeight) {
-    return { path: google.maps.SymbolPath.CIRCLE, scale, fillColor: getMarkerColor(v), fillOpacity: 1, strokeColor: '#FFFFFF', strokeWeight };
+    const path = isVerifiedVenue(v) ? VERIFIED_MARKER_PATH : google.maps.SymbolPath.CIRCLE;
+    return { path, scale, fillColor: getMarkerColor(v), fillOpacity: 1, strokeColor: '#FFFFFF', strokeWeight };
   }
 
   // Spread overlapping markers radially so each pin is individually visible.
@@ -778,9 +858,27 @@
     renderSidebar(); renderVenueList();
   }
 
+  // Escape closes whichever overlay is actually on top, not just the edit
+  // panel — checked top z-index first. The Find Place IDs modal only closes
+  // if its ✕ button is visible, same rule the button itself already follows
+  // (hidden while a search is mid-flight, so a stray Escape can't abandon it).
+  function handleGlobalEscape(e) {
+    if (e.key !== 'Escape') return;
+    const lightbox = document.getElementById('photo-lightbox');
+    if (lightbox) { lightbox.remove(); return; }
+    if (document.getElementById('confirm-modal')?.classList.contains('open')) { resolveConfirm(false); return; }
+    const placeIdsCloseBtn = document.getElementById('place-ids-close-btn');
+    if (document.getElementById('place-ids-modal')?.classList.contains('open') && placeIdsCloseBtn?.style.display !== 'none') {
+      closePlaceIdsModal(); return;
+    }
+    if (document.getElementById('add-place-modal')?.classList.contains('open')) { closeAddPlaceModal(); return; }
+    if (document.getElementById('csv-modal')?.classList.contains('open')) { closeCsvModal(); return; }
+    if (selectedVenue) { closePanel(); return; }
+  }
+
   // ── Init ──────────────────────────────────────────────────────
   async function init() {
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && selectedVenue) closePanel(); });
+    document.addEventListener('keydown', handleGlobalEscape);
     showLoading();
     await Promise.all([loadVenues(), loadTags(), loadReports(), loadPendingPhotos()]);
     renderAll();
@@ -850,12 +948,52 @@
   }
 
   // ── Toast ─────────────────────────────────────────────────────
-  function showToast(msg) {
+  let toastHideTimer = null;
+  let toastAction = null;
+
+  // options.action = { text, run } for reversible operations, e.g.
+  // showToast('Venue rejected', { action: { text: 'Undo', run: () => … } }).
+  // Actionable toasts stay up 6s instead of 2.5s — long enough to actually
+  // read and decide, not just register that something happened.
+  function showToast(msg, options = {}) {
     const el = document.getElementById('toast');
     if (!el) return;
-    el.textContent = msg;
+    clearTimeout(toastHideTimer);
+    toastAction = options.action ? options.action.run : null;
+    el.innerHTML = options.action
+      ? `<span>${h(msg)}</span><button type="button" class="toast-action" onclick="runToastAction()">${h(options.action.text)}</button>`
+      : h(msg);
     el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 2500);
+    toastHideTimer = setTimeout(() => { el.classList.remove('show'); toastAction = null; }, options.action ? 6000 : 2500);
+  }
+  function runToastAction() {
+    const el = document.getElementById('toast');
+    if (toastAction) toastAction();
+    toastAction = null;
+    clearTimeout(toastHideTimer);
+    if (el) el.classList.remove('show');
+  }
+
+  // ── Confirm modal ─────────────────────────────────────────────
+  // Styled stand-in for window.confirm(), reserved for actions that can't
+  // be undone (Delete Venue). Reversible actions use showToast's Undo
+  // action instead — no "are you sure?" in the way, immediate effect, easy
+  // to back out of. Returns a Promise<boolean>, so call sites read as
+  // `if (!await askConfirm(...)) return;` same shape as the old confirm().
+  let confirmModalResolve = null;
+  function askConfirm({ title, body, confirmText = 'Delete' }) {
+    document.getElementById('confirm-modal-title').textContent = title;
+    document.getElementById('confirm-modal-body').textContent = body;
+    document.getElementById('confirm-modal-confirm').textContent = confirmText;
+    document.getElementById('confirm-modal').classList.add('open');
+    // Default focus lands on Cancel, not the destructive button — an
+    // absent-minded Enter press should never delete something.
+    setTimeout(() => document.getElementById('confirm-modal-cancel').focus(), 50);
+    return new Promise(resolve => { confirmModalResolve = resolve; });
+  }
+  function resolveConfirm(result) {
+    document.getElementById('confirm-modal').classList.remove('open');
+    if (confirmModalResolve) { confirmModalResolve(result); confirmModalResolve = null; }
   }
 
   // ── Stats card ────────────────────────────────────────────────
@@ -1225,43 +1363,59 @@
             ${photoSection('Cover Photo','cover',v.cover_photo_url)}
             ${photoSection('Indoor Photo','indoor',v.indoor_photo_url)}
           </div>
-          <div style="border-top:1px solid var(--border);"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-            ${fld('Name',          `<input id="f-name" value="${a(v.name)}" class="input-field">`)}
-            ${fld('Neighbourhood', `<input id="f-neighbourhood" value="${a(v.neighbourhood||'')}" class="input-field">`)}
-            ${fld('City',          `<input id="f-city" value="${a(v.city||'')}" class="input-field">`)}
-            ${fld('Address',       `<input id="f-address" value="${a(v.address||'')}" placeholder="e.g. 78 Moh Guan Terrace" class="input-field">`)}
-            ${fld('Seating type',  `<select id="f-seating" class="input-field"><option value="indoor" ${v.seating_type==='indoor'?'selected':''}>Indoor</option><option value="outdoor" ${v.seating_type==='outdoor'?'selected':''}>Outdoor</option><option value="both" ${v.seating_type==='both'?'selected':''}>Indoor &amp; Outdoor</option></select>`)}
-            ${fld('Dog sizes',     `<select id="f-dog-sizes" class="input-field"><option value="small" ${v.dog_sizes_allowed==='small'?'selected':''}>Small only</option><option value="medium" ${v.dog_sizes_allowed==='medium'?'selected':''}>Medium &amp; below</option><option value="large" ${v.dog_sizes_allowed==='large'?'selected':''}>Large &amp; below</option><option value="all" ${v.dog_sizes_allowed==='all'?'selected':''}>All sizes</option></select>`)}
-            ${fld('Status',        `<select id="f-status" class="input-field"><option value="pending" ${v.status==='pending'?'selected':''}>Pending</option><option value="live" ${v.status==='live'?'selected':''}>Live</option><option value="rejected" ${v.status==='rejected'?'selected':''}>Rejected</option></select>`)}
-            ${fld('Last verified', `<input id="f-last-verified" type="date" value="${a(v.last_verified_date||'')}" class="input-field">`)}
-            ${fld('Latitude',  `<input id="f-lat" value="${v.lat != null ? v.lat : ''}" placeholder="1.3521" class="input-field">`)}
-            ${fld('Longitude', `<input id="f-lng" value="${v.lng != null ? v.lng : ''}" placeholder="103.8198" class="input-field">`)}
-          </div>
-          ${v.lat == null || v.lng == null ? `
-            <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-              <p style="font-size:12px;color:var(--orange-text);font-weight:600;">No map coordinates — pin won't appear on the map</p>
-              <button id="geocode-btn" onclick="geocodeVenueAddress()" style="flex-shrink:0;padding:6px 12px;border-radius:8px;background:var(--orange-solid);color:var(--on-solid);border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">📍 Locate from address</button>
-            </div>` : `
-            <div style="text-align:right;">
-              <button id="geocode-btn" onclick="geocodeVenueAddress()" style="padding:4px 10px;border-radius:7px;background:none;color:var(--text3);border:1px solid var(--border2);font-size:11px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">📍 Re-locate from address</button>
-            </div>`}
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-            ${tog('Indoor verified','f-indoor-verified',v.indoor_verified)}
-            ${tog('Pet menu','f-pet-menu',v.pet_menu)}
-          </div>
-          ${triState('Leash policy','f-leash-free',v.leash_free)}
-          ${fld('Google Place ID',`<input id="f-place-id" value="${a(v.google_place_id||'')}" placeholder="ChIJ…" class="input-field">`)}
-          ${fld('TikTok Review URL', `<div style="display:flex;gap:8px;align-items:center;"><input id="f-review-url" value="${a(v.review_url||'')}" placeholder="https://www.tiktok.com/@user/video/..." class="input-field" style="flex:1;"><button type="button" onclick="const u=document.getElementById('f-review-url').value.trim();if(u)window.open(u,'_blank');" style="flex-shrink:0;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">Test ↗</button></div><div id="review-url-warning" style="display:none;margin-top:8px;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--orange-text);font-weight:600;">⚠ This video may have been deleted — update the link above</div>`)}
-          <div>
-            <label class="field-label">Amenity Tags</label>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-              ${amenityTags.length === 0
-                ? '<p style="font-size:13px;color:var(--text2);">No tags yet.</p>'
-                : amenityTags.map(t => `<label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);"><input type="checkbox" value="${a(t.name)}" ${vTags.includes(t.name)?'checked':''} class="tag-cb" style="width:13px;height:13px;accent-color:var(--text);cursor:pointer;"><span style="font-size:12px;color:var(--text);">${h(t.name)}</span></label>`).join('')}
+
+          ${section('Basic info', `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+              ${fld('Name',          `<input id="f-name" value="${a(v.name)}" class="input-field">`)}
+              ${fld('Neighbourhood', `<input id="f-neighbourhood" value="${a(v.neighbourhood||'')}" class="input-field">`)}
+              ${fld('City',          `<input id="f-city" value="${a(v.city||'')}" class="input-field">`)}
+              ${fld('Address',       `<input id="f-address" value="${a(v.address||'')}" placeholder="e.g. 78 Moh Guan Terrace" class="input-field">`)}
+              ${fld('Seating type',  `<select id="f-seating" class="input-field"><option value="indoor" ${v.seating_type==='indoor'?'selected':''}>Indoor</option><option value="outdoor" ${v.seating_type==='outdoor'?'selected':''}>Outdoor</option><option value="both" ${v.seating_type==='both'?'selected':''}>Indoor &amp; Outdoor</option></select>`)}
+              ${fld('Dog sizes',     `<select id="f-dog-sizes" class="input-field"><option value="small" ${v.dog_sizes_allowed==='small'?'selected':''}>Small only</option><option value="medium" ${v.dog_sizes_allowed==='medium'?'selected':''}>Medium &amp; below</option><option value="large" ${v.dog_sizes_allowed==='large'?'selected':''}>Large &amp; below</option><option value="all" ${v.dog_sizes_allowed==='all'?'selected':''}>All sizes</option></select>`)}
             </div>
-          </div>
-          ${v.notes ? fld('Submission notes',`<p style="font-size:13px;color:var(--text2);font-style:italic;line-height:1.5;">"${h(v.notes)}"</p>`) : ''}
+          `, true)}
+
+          ${section('Location', `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+              ${fld('Latitude',  `<input id="f-lat" type="number" step="any" inputmode="decimal" value="${v.lat != null ? v.lat : ''}" placeholder="1.3521" class="input-field">`)}
+              ${fld('Longitude', `<input id="f-lng" type="number" step="any" inputmode="decimal" value="${v.lng != null ? v.lng : ''}" placeholder="103.8198" class="input-field">`)}
+            </div>
+            ${v.lat == null || v.lng == null ? `
+              <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                <p style="font-size:12px;color:var(--orange-text);font-weight:600;">No map coordinates — pin won't appear on the map</p>
+                <button id="geocode-btn" onclick="geocodeVenueAddress()" style="flex-shrink:0;padding:6px 12px;border-radius:8px;background:var(--orange-solid);color:var(--on-solid);border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">📍 Locate from address</button>
+              </div>` : `
+              <div style="text-align:right;">
+                <button id="geocode-btn" onclick="geocodeVenueAddress()" style="padding:4px 10px;border-radius:7px;background:none;color:var(--text3);border:1px solid var(--border2);font-size:11px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">📍 Re-locate from address</button>
+              </div>`}
+          `, true)}
+
+          ${section('Verification &amp; trust', `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+              ${fld('Status',        `<select id="f-status" class="input-field"><option value="pending" ${v.status==='pending'?'selected':''}>Pending</option><option value="live" ${v.status==='live'?'selected':''}>Live</option><option value="rejected" ${v.status==='rejected'?'selected':''}>Rejected</option></select>`)}
+              ${fld('Last verified', `<input id="f-last-verified" type="date" value="${a(v.last_verified_date||'')}" class="input-field">`)}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+              ${tog('Indoor verified','f-indoor-verified',v.indoor_verified)}
+              ${tog('Pet menu','f-pet-menu',v.pet_menu)}
+            </div>
+            ${triState('Leash policy','f-leash-free',v.leash_free)}
+          `, true)}
+
+          ${section('Extra', `
+            ${fld('Google Place ID',`<input id="f-place-id" value="${a(v.google_place_id||'')}" placeholder="ChIJ…" class="input-field">`)}
+            ${fld('TikTok Review URL', `<div style="display:flex;gap:8px;align-items:center;"><input id="f-review-url" value="${a(v.review_url||'')}" placeholder="https://www.tiktok.com/@user/video/..." class="input-field" style="flex:1;"><button type="button" onclick="const u=document.getElementById('f-review-url').value.trim();if(u)window.open(u,'_blank');" style="flex-shrink:0;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">Test ↗</button></div><div id="review-url-warning" style="display:none;margin-top:8px;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--orange-text);font-weight:600;">⚠ This video may have been deleted — update the link above</div>`)}
+            <div>
+              <label class="field-label">Amenity Tags</label>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                ${amenityTags.length === 0
+                  ? '<p style="font-size:13px;color:var(--text2);">No tags yet.</p>'
+                  : amenityTags.map(t => `<label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);"><input type="checkbox" value="${a(t.name)}" ${vTags.includes(t.name)?'checked':''} class="tag-cb" style="width:13px;height:13px;accent-color:var(--text);cursor:pointer;"><span style="font-size:12px;color:var(--text);">${h(t.name)}</span></label>`).join('')}
+              </div>
+            </div>
+            ${v.notes ? fld('Submission notes',`<p style="font-size:13px;color:var(--text2);font-style:italic;line-height:1.5;">"${h(v.notes)}"</p>`) : ''}
+          `, Boolean(v.google_place_id || v.review_url || v.notes || vTags.length))}
+
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
               <label class="field-label" style="margin:0;">Community Photos</label>
@@ -1340,6 +1494,15 @@
   }
 
   function fld(label, input) { return `<div><label class="field-label">${label}</label>${input}</div>`; }
+
+  // Labeled, collapsible group of fields — see .edit-section CSS for why
+  // <details> instead of a custom accordion.
+  function section(title, bodyHtml, open) {
+    return `<details ${open ? 'open' : ''} class="edit-section">
+      <summary class="edit-section-summary">${title}</summary>
+      <div class="edit-section-body">${bodyHtml}</div>
+    </details>`;
+  }
   function tog(label, id, checked) {
     return `<div style="display:flex;align-items:center;justify-content:space-between;">
       <label class="field-label" style="margin:0;">${label}</label>
@@ -1486,6 +1649,22 @@
   }
 
   // ── Venue actions ─────────────────────────────────────────────
+  // Blank means "leave unset" (null); anything else must parse as a real
+  // number. `parseFloat(x) || null` — the old logic — had two problems:
+  // typing "abc" silently became null with no warning, and a genuine 0
+  // (equator/prime meridian) was also coerced to null, since 0 is falsy.
+  function readCoord(id) {
+    const raw = (document.getElementById(id)?.value ?? '').trim();
+    if (raw === '') return { value: null, invalid: false };
+    const n = Number(raw);
+    return { value: Number.isFinite(n) ? n : null, invalid: !Number.isFinite(n) };
+  }
+  function validateCoords() {
+    const lat = readCoord('f-lat'), lng = readCoord('f-lng');
+    if (lat.invalid || lng.invalid) return 'Latitude/Longitude must be numbers (e.g. 1.3521) — leave blank to clear.';
+    return null;
+  }
+
   function getFormData() {
     return {
       name:               document.getElementById('f-name').value.trim(),
@@ -1501,13 +1680,15 @@
       leash_free:         readTriState('f-leash-free'),
       google_place_id:    document.getElementById('f-place-id').value.trim() || null,
       review_url:         document.getElementById('f-review-url').value.trim() || null,
-      lat:                parseFloat(document.getElementById('f-lat')?.value) || null,
-      lng:                parseFloat(document.getElementById('f-lng')?.value) || null,
+      lat:                readCoord('f-lat').value,
+      lng:                readCoord('f-lng').value,
       tags:               [...document.querySelectorAll('.tag-cb:checked')].map(cb => cb.value),
     };
   }
 
   async function saveVenue() {
+    const coordError = validateCoords();
+    if (coordError) { panelMsg(coordError, true); return; }
     const updates = getFormData();
     const btn = document.querySelector('#edit-panel .btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
@@ -1525,6 +1706,8 @@
   }
 
   async function approveVenue() {
+    const coordError = validateCoords();
+    if (coordError) { panelMsg(coordError, true); return; }
     const updates = { ...getFormData(), status: 'live', last_verified_date: today() };
     const { error } = await db.from('venues').update(updates).eq('id', selectedVenue.id);
     if (error) { panelMsg('Error: ' + error.message, true); return; }
@@ -1537,14 +1720,29 @@
   }
 
   async function rejectVenue() {
-    const { error } = await db.from('venues').update({ status: 'rejected' }).eq('id', selectedVenue.id);
+    const id = selectedVenue.id;
+    const previousStatus = selectedVenue.status; // almost always 'pending'
+    const { error } = await db.from('venues').update({ status: 'rejected' }).eq('id', id);
     if (error) { panelMsg('Error: ' + error.message, true); return; }
-    patchVenue(selectedVenue.id, { status: 'rejected' });
+    patchVenue(id, { status: 'rejected' });
     renderStatsCard(); renderSidebar();
     if (venueListMode) renderVenueList();
     loadVenueMarkers();
     closePanel();
-    showToast('Venue rejected');
+    // Reversible, so act immediately and offer Undo rather than asking
+    // "are you sure?" up front — unlike Delete, re-approving a wrongly
+    // rejected venue costs nothing.
+    showToast('Venue rejected', { action: { text: 'Undo', run: () => undoRejectVenue(id, previousStatus) } });
+  }
+
+  async function undoRejectVenue(id, previousStatus) {
+    const { error } = await db.from('venues').update({ status: previousStatus }).eq('id', id);
+    if (error) { showToast('Undo failed: ' + error.message); return; }
+    patchVenue(id, { status: previousStatus });
+    renderStatsCard(); renderSidebar();
+    if (venueListMode) renderVenueList();
+    loadVenueMarkers();
+    showToast('Restored to ' + previousStatus);
   }
 
   function renderCommunityPhotos() {
@@ -1600,7 +1798,12 @@
   }
 
   async function deleteVenue() {
-    if (!confirm(`Permanently delete "${selectedVenue.name}"?`)) return;
+    const ok = await askConfirm({
+      title: 'Delete this venue?',
+      body: `"${selectedVenue.name}" will be permanently removed from the database. This can't be undone.`,
+      confirmText: 'Delete venue',
+    });
+    if (!ok) return;
     const { error, count } = await db.from('venues').delete({ count: 'exact' }).eq('id', selectedVenue.id);
     if (error) { panelMsg('Error: ' + error.message, true); return; }
     if (count === 0) { panelMsg('Delete blocked — check RLS policies.', true); return; }
@@ -1761,12 +1964,12 @@
     document.getElementById('ap-error').style.display = 'none';
     const btn = document.getElementById('ap-submit-btn');
     btn.disabled = false; btn.textContent = 'Add Place'; btn.style.background = '';
-    document.getElementById('add-place-modal').style.display = 'flex';
+    document.getElementById('add-place-modal').classList.add('open');
     setTimeout(() => document.getElementById('ap-name').focus(), 50);
   }
 
   function closeAddPlaceModal() {
-    document.getElementById('add-place-modal').style.display = 'none';
+    document.getElementById('add-place-modal').classList.remove('open');
   }
 
   async function submitAddPlace() {
@@ -1892,7 +2095,7 @@
     log.innerHTML = '';
     closeBtn.style.display = 'none';
     status.textContent = `Searching ${missing.length} venue${missing.length !== 1 ? 's' : ''}…`;
-    modal.style.display = 'flex';
+    modal.classList.add('open');
 
     const btn = document.getElementById('fill-place-ids-btn');
     if (btn) btn.style.opacity = '0.4';
@@ -1936,7 +2139,7 @@
   }
 
   function closePlaceIdsModal() {
-    document.getElementById('place-ids-modal').style.display = 'none';
+    document.getElementById('place-ids-modal').classList.remove('open');
   }
 
   // ── Helpers ───────────────────────────────────────────────────
