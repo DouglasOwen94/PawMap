@@ -63,9 +63,6 @@ function isWarningTag(tag: string): boolean {
   const lower = tag.toLowerCase();
   return WARNING_KEYWORDS.some(kw => lower.includes(kw));
 }
-function hasCarrierTag(tags: string[]): boolean {
-  return tags.some(t => t.toLowerCase().includes('carrier'));
-}
 
 export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Props) {
   const sheetRef   = useRef<BottomSheet>(null);
@@ -467,19 +464,23 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>What&apos;s here</Text>
                   <HorizontalScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsScroll}>
-                    {/* Warning tags first */}
-                    {venue.leash_free === false && !hasCarrierTag(venue.tags ?? []) && (
-                      <View style={styles.tagWarning}><Text style={styles.tagWarningText}>⚠ Leash required</Text></View>
-                    )}
+                    {/* Warning tags first — founder-added exceptions only.
+                        leash_free === false is NOT one of these: most SG
+                        venues require a leash, so that's the unremarkable
+                        default, not a warning. It renders nothing, same as
+                        leash_free === null (not yet checked). */}
                     {Array.isArray(venue.tags) && venue.tags.filter(isWarningTag).map(tag => (
                       <View key={tag} style={styles.tagWarning}><Text style={styles.tagWarningText}>⚠ {tag}</Text></View>
                     ))}
-                    {/* Amenity tags after */}
+                    {/* Leash-free is the rare, worth-knowing fact (most venues
+                        don't offer it) — shown first among the positive tags,
+                        in its own color so it doesn't blend into the neutral
+                        amenity pills next to it. */}
+                    {venue.leash_free === true && (
+                      <View style={styles.tagLeashFree}><Text style={styles.tagLeashFreeText}>Leash-free</Text></View>
+                    )}
                     {venue.pet_menu && (
                       <View style={styles.tag}><Text style={styles.tagText}>Pet menu</Text></View>
-                    )}
-                    {venue.leash_free === true && (
-                      <View style={styles.tag}><Text style={styles.tagText}>Leash-free</Text></View>
                     )}
                     <View style={styles.tag}>
                       <Text style={styles.tagText}>{getDogSizeLabel(venue.dog_sizes_allowed)}</Text>
@@ -777,6 +778,10 @@ const styles = StyleSheet.create({
   tagsScroll:     { gap: 6, paddingBottom: 2 },
   tag:            { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 100, borderWidth: 1, borderColor: '#E8E8E4' },
   tagText:        { fontSize: 12, fontFamily: Font.regular, color: '#6B6B6B' },
+  // Reuses the app's existing "verified / good" green (color-green) rather
+  // than a new hue — same visual vocabulary as the Indoor Verified badge.
+  tagLeashFree:     { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(34,197,94,0.35)', backgroundColor: 'rgba(34,197,94,0.12)' },
+  tagLeashFreeText: { fontSize: 12, fontFamily: Font.semiBold, color: '#15803D' }, // darkened for 4.5:1+ contrast on the tint, not the raw #22C55E
   tagWarning:     { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 100, borderWidth: 1, borderColor: '#F59E0B', backgroundColor: '#FEF3C7' },
   tagWarningText: { fontSize: 12, fontFamily: Font.semiBold, color: '#B45309' },
 
