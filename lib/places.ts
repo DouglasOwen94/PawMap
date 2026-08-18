@@ -1,3 +1,5 @@
+import { supabase } from '@/lib/supabase';
+
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes — open_now goes stale
@@ -67,4 +69,28 @@ export async function fetchPlaceDetails(placeId: string): Promise<PlaceDetails |
 export async function fetchPlaceRating(placeId: string): Promise<number | null> {
   const details = await fetchPlaceDetails(placeId);
   return details?.rating ?? null;
+}
+
+/**
+ * Web-only: fetch rating + hours for many places at once via the
+ * `place-details` Supabase Edge Function. Google's Place Details API
+ * blocks direct calls from browser JS (no CORS headers), so the web build
+ * routes through this server-side proxy instead of calling Google
+ * directly like fetchPlaceDetails() does on native.
+ * Returns an empty object (never throws) if the function is unreachable,
+ * so callers can degrade gracefully to the Supabase `hours` fallback.
+ */
+export async function fetchPlaceDetailsBatch(
+  placeIds: string[]
+): Promise<Record<string, PlaceDetails | null>> {
+  if (placeIds.length === 0) return {};
+  try {
+    const { data, error } = await supabase.functions.invoke('place-details', {
+      body: { placeIds },
+    });
+    if (error || !data) return {};
+    return data as Record<string, PlaceDetails | null>;
+  } catch {
+    return {};
+  }
 }

@@ -15,6 +15,7 @@ import { FilterChips, type FilterKey } from '@/components/FilterChips';
 import { MapPin } from '@/components/MapPin';
 import { VenueBottomSheet } from '@/components/VenueBottomSheet';
 import { supabase } from '@/lib/supabase';
+import { fetchPlaceDetailsBatch } from '@/lib/places';
 import { useSavedVenues } from '@/hooks/useSavedVenues';
 import { buildMarkerPositions, isExpiredVenue, MS_PER_DAY, VERIFIED_DAYS } from '@/utils/venue';
 import type { Venue } from '@/types/venue';
@@ -108,11 +109,31 @@ export default function MapScreen() {
       return;
     }
     setLoadError(false);
-    // Places Details (legacy) API has no browser CORS support, so live
-    // ratings/hours can't be fetched from web — venues fall back to
-    // manually-entered Supabase hours/rating, same as when this fetch
-    // fails on native.
-    setVenues(data as Venue[]);
+    const venues = data as Venue[];
+    // Google's Place Details API has no browser CORS support, so this goes
+    // through the place-details Edge Function (server-side, no CORS issue)
+    // instead of calling Google directly like fetchPlaceDetails() does on
+    // native. If the function fails, it returns {} and every venue falls
+    // back to manually-entered Supabase hours/rating, same as when this
+    // fetch fails on native.
+    const placeIds = venues
+      .map(v => v.google_place_id)
+      .filter((id): id is string => id != null);
+    const details = await fetchPlaceDetailsBatch(placeIds);
+    setVenues(
+      venues.map(v => {
+        const d = v.google_place_id ? details[v.google_place_id] : null;
+        if (!d) return v;
+        const { rating, openNow, closingTime, weekdayHours } = d;
+        return {
+          ...v,
+          ...(rating       != null ? { rating }       : {}),
+          ...(openNow      != null ? { openNow }      : {}),
+          ...(closingTime  != null ? { closingTime }  : {}),
+          ...(weekdayHours != null ? { weekdayHours } : {}),
+        };
+      })
+    );
     setLoading(false);
   }
 

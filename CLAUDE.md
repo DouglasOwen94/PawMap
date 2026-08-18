@@ -238,6 +238,7 @@ type CommunityPhoto = {
 - **Custom marker Views inside `<Marker>` on Android** need two fixes: `collapsable={false}` on outermost View, and `tracksViewChanges` starts `true` then flips to `false` after first frame via `setTimeout`.
 - **Android map style**: `customMapStyle` only works on Android/Google Maps. iOS Apple Maps ignores it — needs `PROVIDER_GOOGLE` + Google Maps iOS API key for parity.
 - **`useFocusEffect`**: Use this instead of `useEffect` for data fetching on tab screens so data reloads when switching back to a tab.
+- **Open Now on web**: Google's Place Details API blocks direct calls from browser JS (no CORS support), so `app/(tabs)/index.web.tsx` can't call `lib/places.ts`'s `fetchPlaceDetails()` directly the way the native app does. Instead it goes through a Supabase Edge Function (`supabase/functions/place-details/`) that calls Google server-side and hands the result back with our own CORS headers. Deploy/redeploy it with `npx supabase functions deploy place-details --project-ref padjppknqnvnrqndpdrk`; the function reads the `GOOGLE_MAPS_API_KEY` secret (set via `npx supabase secrets set`), not the client-side `EXPO_PUBLIC_` env vars.
 
 ---
 
@@ -283,6 +284,11 @@ utils/
   venue.ts                 # isExpiredVenue, isIndoorVerified, getPinColor, label helpers
 dashboard/
   index.html               # Web admin dashboard — open directly in Chrome
+supabase/
+  functions/
+    place-details/         # Edge Function: server-side proxy for Google Place Details (web build only — see Implementation gotchas)
+      index.ts
+      _shared/cors.ts      # CORS headers, kept inside this function's own folder so it deploys as one self-contained bundle
 ```
 
 ---
