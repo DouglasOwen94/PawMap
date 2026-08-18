@@ -26,6 +26,24 @@
       --red:          #EF4444;
       --red-bg:       rgba(239,68,68,0.10);
       --red-border:   rgba(239,68,68,0.25);
+
+      /* Readable variants of the brand hues, for anything that is actually
+         READ as text. The raw --green/--orange/--red above stay in use for
+         dots, borders and tinted backgrounds, where WCAG sets no ratio.
+         Measured on the 10% tint over --surface: green 4.61:1,
+         orange 4.68:1, red 5.68:1 — all clear the 4.5:1 minimum, which the
+         raw hues did not (2.09 / 2.53 / 3.30). */
+      --green-text:  #15803D;
+      --orange-text: #C2410C;
+      --red-text:    #B91C1C;
+
+      /* Solid fills that carry text (Approve buttons, transient Saved/Error
+         button states). --on-solid is the only colour that goes on top of
+         these. White on raw #22C55E was 2.28:1; this pairing is 5.02:1. */
+      --green-solid:  #15803D;
+      --orange-solid: #C2410C;
+      --red-solid:    #B91C1C;
+      --on-solid:     #FFFFFF;
     }
 
     [data-theme="dark"] {
@@ -38,6 +56,20 @@
       --text:     #F0F0EE;
       --text2:    #888888;
       --text3:    #555555;
+
+      /* Dark mode needs these lightened rather than darkened — same job,
+         opposite direction. Measured on the tint over --surface:
+         green 8.52:1, orange 9.02:1, red 5.71:1. */
+      --green-text:  #4ADE80;
+      --orange-text: #FDBA74;
+      --red-text:    #F87171;
+
+      /* On a dark ground the solid fills go bright and the text on them
+         goes dark — white on #4ADE80 would fail. #111 on it is 10.84:1. */
+      --green-solid:  #4ADE80;
+      --orange-solid: #FDBA74;
+      --red-solid:    #FF6B6B;
+      --on-solid:     #111111;
     }
     [data-theme="dark"] #stats-card,
     [data-theme="dark"] #map-legend { background: var(--surface); color: var(--text); }
@@ -68,6 +100,19 @@
     [data-theme="dark"] .toggle-slider { background: #3A3A3A; }
     [data-theme="dark"] .toggle-slider:before { background: #888888; }
 
+    /* Segmented control for nullable booleans. leash_free is three-state in
+       the DB — null (not set) / true (leash-free) / false (leash required) —
+       and a two-state toggle had no way to express "not set", so saving any
+       venue that had never been checked silently wrote false. Built from real
+       radios so arrow-key navigation and screen-reader semantics come free. */
+    .tri { position: relative; display: flex; border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; background: var(--surface2); }
+    .tri input { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; pointer-events: none; }
+    .tri label { flex: 1; text-align: center; padding: 9px 6px; font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; transition: background 0.15s, color 0.15s; border-right: 1px solid var(--border2); user-select: none; }
+    .tri label:last-child { border-right: none; }
+    .tri label:hover { background: var(--surface3); color: var(--text); }
+    .tri input:checked + label { background: var(--text); color: var(--surface); }
+    .tri input:focus-visible + label { outline: 2px solid var(--text); outline-offset: -2px; }
+
     .edit-panel { transition: transform 350ms cubic-bezier(0.32, 0.72, 0, 1); }
 
     .input-field {
@@ -91,7 +136,7 @@
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-secondary { background: var(--surface2); color: var(--text); font-size: 14px; font-weight: 500; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; transition: background 0.15s; border: 1px solid var(--border2); font-family: 'Urbanist', sans-serif; }
     .btn-secondary:hover { background: var(--surface3); }
-    .btn-danger { background: var(--surface2); color: var(--red); font-size: 14px; font-weight: 500; padding: 12px 16px; border-radius: 12px; cursor: pointer; transition: background 0.15s; border: 1px solid var(--border2); flex-shrink: 0; font-family: 'Urbanist', sans-serif; }
+    .btn-danger { background: var(--surface2); color: var(--red-text); font-size: 14px; font-weight: 500; padding: 12px 16px; border-radius: 12px; cursor: pointer; transition: background 0.15s; border: 1px solid var(--border2); flex-shrink: 0; font-family: 'Urbanist', sans-serif; }
     .btn-danger:hover { background: var(--red-bg); border-color: var(--red-border); }
 
     .photo-upload-area { border: 1.5px dashed var(--border2); border-radius: 10px; padding: 14px; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; color: var(--text2); font-size: 13px; }
@@ -107,6 +152,19 @@
     .venue-card { transition: border-color 0.15s, background 0.15s; }
     .venue-card:hover { border-color: var(--border2) !important; background: var(--surface2) !important; }
     .venue-card.selected { border-color: var(--text) !important; box-shadow: 0 0 0 2px var(--text); }
+    /* Cards are keyboard-reachable (role=button + tabindex), so they need a
+       visible focus ring — offset outward so it clears the rounded corner. */
+    .venue-card:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+    /* Global focus ring: the dashboard is otherwise mouse-only in places. */
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    [tabindex]:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+    .sidebar-btn:focus-visible,
+    .sidebar-action-btn:focus-visible,
+    .sidebar-search:focus-visible,
+    .view-toggle-btn:focus-visible { outline: 2px solid #FFFFFF; outline-offset: -2px; }
 
     .field-label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
 
@@ -121,13 +179,19 @@
     .csv-table tr:last-child td { border-bottom: none; }
 
     /* Sidebar */
-    .sidebar-btn { text-align: left; padding: 7px 10px; border-radius: 7px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; width: 100%; transition: background 0.15s, color 0.15s; background: none; color: rgba(255,255,255,0.45); font-family: 'Urbanist', sans-serif; }
-    .sidebar-btn:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
+    /* Nav sits one step brighter than the secondary actions below it (0.62)
+       so the hierarchy still reads after both were raised for contrast.
+       0.72 measures 10.2:1 on #0A0A0A. */
+    .sidebar-btn { text-align: left; padding: 7px 10px; border-radius: 7px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; width: 100%; transition: background 0.15s, color 0.15s; background: none; color: rgba(255,255,255,0.72); font-family: 'Urbanist', sans-serif; }
+    .sidebar-btn:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; }
     .sidebar-btn.active { background: rgba(255,255,255,0.13); color: #FFF; font-weight: 600; }
-    .sidebar-section-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.28); text-transform: uppercase; letter-spacing: 0.09em; padding: 0 10px; margin: 14px 0 3px; }
+    /* 0.28 measured 2.40:1 on the #0A0A0A sidebar — below the 4.5:1 floor.
+       0.62 is 7.75:1 and still reads as a quiet label. */
+    .sidebar-section-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.62); text-transform: uppercase; letter-spacing: 0.09em; padding: 0 10px; margin: 14px 0 3px; }
     .sidebar-divider { border-top: 1px solid rgba(255,255,255,0.07); margin: 8px 0; }
-    .sidebar-action-btn { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: none; color: rgba(255,255,255,0.35); transition: background 0.15s, color 0.15s; font-family: 'Urbanist', sans-serif; }
-    .sidebar-action-btn:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.65); }
+    /* 0.35 measured 3.14:1 — below the floor. 0.62 is 7.75:1. */
+    .sidebar-action-btn { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; background: none; color: rgba(255,255,255,0.62); transition: background 0.15s, color 0.15s; font-family: 'Urbanist', sans-serif; }
+    .sidebar-action-btn:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; }
 
     /* Search in sidebar */
     .sidebar-search { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.07); color: #FFF; font-size: 12px; font-family: 'Urbanist', sans-serif; outline: none; transition: border-color 0.15s, background 0.15s; }
@@ -158,8 +222,9 @@
 </head>
 <body>
 
-<!-- Toast -->
-<div id="toast" class="toast"></div>
+<!-- Toast — role=status/aria-live=polite so screen readers announce
+     "Changes saved" etc. without interrupting whatever is being read. -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <!-- Login -->
 <div id="login-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:1000;align-items:center;justify-content:center;">
@@ -177,7 +242,8 @@
         <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Password</label>
         <input id="login-password" type="password" class="input-field" autocomplete="current-password" required>
       </div>
-      <div id="login-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px;"></div>
+      <!-- role=alert: a failed sign-in must interrupt, unlike a status toast. -->
+      <div id="login-error" role="alert" style="display:none;color:var(--red-text);font-size:13px;font-weight:600;margin-bottom:12px;"></div>
       <button type="submit" id="login-submit" class="btn-primary">Sign in</button>
     </form>
   </div>
@@ -218,7 +284,7 @@
         <p class="sidebar-section-label">Manage</p>
         <button onclick="showReportsView()"       id="nav-reports" class="sidebar-btn">Reports</button>
         <button onclick="showPendingPhotosView()" id="nav-photos"  class="sidebar-btn">
-          Photos <span id="pending-photos-badge" style="margin-left:3px;padding:1px 6px;border-radius:100px;background:var(--orange);color:#fff;font-size:10px;font-weight:700;display:none;"></span>
+          Photos <span id="pending-photos-badge" style="margin-left:3px;padding:1px 6px;border-radius:100px;background:var(--orange-solid);color:var(--on-solid);font-size:10px;font-weight:700;display:none;"></span>
         </button>
         <button onclick="showTagsView()"          id="nav-tags"    class="sidebar-btn">Tags</button>
       </nav>
@@ -316,7 +382,7 @@
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div style="grid-column:1/-1;">
-          <label class="field-label">Name <span style="color:var(--red);">*</span></label>
+          <label class="field-label">Name <span style="color:var(--red-text);">*</span></label>
           <input id="ap-name" type="text" class="input-field" placeholder="e.g. Kopi & Kaya">
         </div>
         <div>
@@ -363,12 +429,16 @@
           <label class="field-label" style="margin:0;">Pet Menu</label>
           <label class="toggle"><input type="checkbox" id="ap-pet-menu"><span class="toggle-slider"></span></label>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
-          <label class="field-label" style="margin:0;">Leash-free</label>
-          <label class="toggle"><input type="checkbox" id="ap-leash-free"><span class="toggle-slider"></span></label>
+        <div style="grid-column:1/-1;">
+          <label class="field-label">Leash policy</label>
+          <div class="tri" role="radiogroup" aria-label="Leash policy">
+            <input type="radio" name="ap-leash-free" id="ap-leash-free-0" value="" checked><label for="ap-leash-free-0">Not set</label>
+            <input type="radio" name="ap-leash-free" id="ap-leash-free-1" value="true"><label for="ap-leash-free-1">Leash-free</label>
+            <input type="radio" name="ap-leash-free" id="ap-leash-free-2" value="false"><label for="ap-leash-free-2">Leash required</label>
+          </div>
         </div>
       </div>
-      <div id="ap-error" style="display:none;background:var(--red-bg);border:1px solid var(--red-border);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red);font-weight:600;"></div>
+      <div id="ap-error" role="alert" style="display:none;background:var(--red-bg);border:1px solid var(--red-border);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red-text);font-weight:600;"></div>
       <button id="ap-submit-btn" onclick="submitAddPlace()" class="btn-primary">Add Place</button>
     </div>
   </div>
@@ -884,7 +954,7 @@
     if (reportsBtn) {
       reportsBtn.className = 'sidebar-btn' + (currentView === 'reports' ? ' active' : '');
       reportsBtn.innerHTML = 'Reports' + (unresolved > 0
-        ? ` <span style="display:inline-block;padding:1px 6px;border-radius:100px;font-size:10px;font-weight:700;background:var(--orange);color:#fff;margin-left:3px;">${unresolved}</span>` : '');
+        ? ` <span style="display:inline-block;padding:1px 6px;border-radius:100px;font-size:10px;font-weight:700;background:var(--orange-solid);color:var(--on-solid);margin-left:3px;">${unresolved}</span>` : '');
     }
     const photosBtn = document.getElementById('nav-photos');
     if (photosBtn) photosBtn.className = 'sidebar-btn' + (currentView === 'pending-photos' ? ' active' : '');
@@ -905,7 +975,7 @@
     document.getElementById('content-container').innerHTML = `
       <div style="max-width:680px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-          <h2 style="font-size:20px;font-weight:800;color:var(--text);">Pending Photos <span style="color:var(--orange);font-weight:600;">(${pendingPhotos.length})</span></h2>
+          <h2 style="font-size:20px;font-weight:800;color:var(--text);">Pending Photos <span style="color:var(--orange-text);font-weight:600;">(${pendingPhotos.length})</span></h2>
           <div style="display:flex;gap:8px;">
             <button onclick="approveAllGlobalPhotos()" class="btn-primary" style="width:auto;padding:8px 18px;">✓ Approve all</button>
             <button onclick="rejectAllGlobalPhotos()" class="btn-danger" style="padding:8px 18px;">✕ Reject all</button>
@@ -920,8 +990,8 @@
                   <p style="font-size:12px;color:var(--text2);">${h(v.neighbourhood)} · ${byVenue[v.id].length} pending</p>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <button onclick="approveVenuePhotos(${v.id})" style="padding:6px 12px;border-radius:8px;background:var(--green);border:none;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">✓ Approve all</button>
-                  <button onclick="rejectVenuePhotos(${v.id})"  style="padding:6px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--red-border);color:var(--red);font-size:12px;font-weight:500;cursor:pointer;font-family:'Urbanist',sans-serif;">✕ Reject all</button>
+                  <button onclick="approveVenuePhotos(${v.id})" style="padding:6px 12px;border-radius:8px;background:var(--green-solid);border:none;color:var(--on-solid);font-size:12px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">✓ Approve all</button>
+                  <button onclick="rejectVenuePhotos(${v.id})"  style="padding:6px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--red-border);color:var(--red-text);font-size:12px;font-weight:500;cursor:pointer;font-family:'Urbanist',sans-serif;">✕ Reject all</button>
                   <button onclick="openVenue(${v.id})"          style="padding:6px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;font-family:'Urbanist',sans-serif;">Edit</button>
                 </div>
               </div>
@@ -1009,7 +1079,7 @@
           </label>
           <div style="display:flex;align-items:center;gap:10px;">
             <span id="selected-count" style="font-size:13px;color:var(--text2);">0 selected</span>
-            <button id="bulk-approve-btn" onclick="bulkApproveSelected()" style="padding:7px 14px;border-radius:8px;background:var(--green);color:#fff;font-size:13px;font-weight:600;border:none;cursor:not-allowed;opacity:0.4;transition:opacity 0.15s;font-family:'Urbanist',sans-serif;">Publish Selected</button>
+            <button id="bulk-approve-btn" onclick="bulkApproveSelected()" style="padding:7px 14px;border-radius:8px;background:var(--green-solid);color:var(--on-solid);font-size:13px;font-weight:600;border:none;cursor:not-allowed;opacity:0.4;transition:opacity 0.15s;font-family:'Urbanist',sans-serif;">Publish Selected</button>
           </div>
         </div>`;
       const dupeVenues = filtered.filter(v => getDupeOthers(v).length > 0);
@@ -1017,7 +1087,7 @@
         const dupeNames = [...new Set(dupeVenues.map(v => v.name.trim()))];
         html += `<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;">
           <span style="font-size:15px;flex-shrink:0;line-height:1.4;">⚠️</span>
-          <div><p style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:3px;">Possible duplicates</p>
+          <div><p style="font-size:13px;font-weight:600;color:var(--orange-text);margin-bottom:3px;">Possible duplicates</p>
           <p style="font-size:12px;color:var(--text2);">${dupeNames.map(n => `<strong style="color:var(--text);">${h(n)}</strong>`).join(', ')} appear${dupeNames.length === 1 ? 's' : ''} more than once.</p></div>
         </div>`;
       }
@@ -1031,7 +1101,7 @@
       const checked = selectedIds.has(v.id);
       const isSelected = selectedVenue && selectedVenue.id === v.id;
       const cardHtml = `
-        <div id="vc-${v.id}" onclick="openVenue(${v.id})" onmouseenter="highlightMarker(${v.id})" onmouseleave="unhighlightMarker(${v.id})" class="venue-card${isSelected ? ' selected' : ''}" style="flex:1;background:var(--surface);border-radius:10px;border:1px solid ${hasDupe ? 'var(--orange-border)' : 'var(--border)'};cursor:pointer;overflow:hidden;display:flex;">
+        <div id="vc-${v.id}" onclick="openVenue(${v.id})" onkeydown="handleCardKey(event, ${v.id})" onmouseenter="highlightMarker(${v.id})" onmouseleave="unhighlightMarker(${v.id})" role="button" tabindex="0" aria-label="Edit ${a(v.name)}" class="venue-card${isSelected ? ' selected' : ''}" style="flex:1;background:var(--surface);border-radius:10px;border:1px solid ${hasDupe ? 'var(--orange-border)' : 'var(--border)'};cursor:pointer;overflow:hidden;display:flex;">
           <div style="position:relative;width:64px;height:64px;flex-shrink:0;">
             ${v.cover_photo_url
               ? `<img src="${h(v.cover_photo_url)}" style="width:64px;height:64px;object-fit:cover;">`
@@ -1042,7 +1112,7 @@
             <div style="flex:1;min-width:0;">
               <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;flex-wrap:wrap;">
                 <span style="font-weight:700;font-size:13px;color:var(--text);">${h(v.name)}</span>
-                ${hasDupe ? `<span style="font-size:11px;font-weight:600;color:var(--orange);">⚠ Duplicate</span>` : ''}
+                ${hasDupe ? `<span style="font-size:11px;font-weight:600;color:var(--orange-text);">⚠ Duplicate</span>` : ''}
                 ${v.review_url ? `<span style="font-size:11px;font-weight:600;color:var(--text3);">▶ Review</span>` : ''}
               </div>
               <p style="font-size:11px;color:var(--text2);margin-bottom:5px;">${[v.neighbourhood, v.city].filter(Boolean).map(h).join(' · ')}</p>
@@ -1071,11 +1141,22 @@
     if (isPendingView) updateBulkBar();
   }
 
+  // Venue cards are divs styled as cards, given role=button + tabindex=0 so
+  // keyboard users can reach them. Native buttons handle Enter/Space for
+  // free; with role=button we have to do it ourselves. preventDefault stops
+  // Space from scrolling the list.
+  function handleCardKey(event, id) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openVenue(id);
+    }
+  }
+
   function pill(text) {
     return `<span style="font-size:11px;color:var(--text2);padding:2px 7px;border-radius:100px;border:1px solid var(--border);background:var(--surface2);">${text}</span>`;
   }
   function statusBadge(status) {
-    const s = { live: `background:var(--green-bg);color:var(--green);border-color:var(--green-border)`, pending: `background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)`, rejected: `background:var(--red-bg);color:var(--red);border-color:var(--red-border)` }[status] || `background:var(--surface2);color:var(--text2);border-color:var(--border)`;
+    const s = { live: `background:var(--green-bg);color:var(--green-text);border-color:var(--green-border)`, pending: `background:var(--orange-bg);color:var(--orange-text);border-color:var(--orange-border)`, rejected: `background:var(--red-bg);color:var(--red-text);border-color:var(--red-border)` }[status] || `background:var(--surface2);color:var(--text2);border-color:var(--border)`;
     return `<span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px;border:1px solid;${s}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
   }
 
@@ -1159,19 +1240,19 @@
           </div>
           ${v.lat == null || v.lng == null ? `
             <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-              <p style="font-size:12px;color:var(--orange);font-weight:600;">No map coordinates — pin won't appear on the map</p>
-              <button id="geocode-btn" onclick="geocodeVenueAddress()" style="flex-shrink:0;padding:6px 12px;border-radius:8px;background:var(--orange);color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">📍 Locate from address</button>
+              <p style="font-size:12px;color:var(--orange-text);font-weight:600;">No map coordinates — pin won't appear on the map</p>
+              <button id="geocode-btn" onclick="geocodeVenueAddress()" style="flex-shrink:0;padding:6px 12px;border-radius:8px;background:var(--orange-solid);color:var(--on-solid);border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">📍 Locate from address</button>
             </div>` : `
             <div style="text-align:right;">
               <button id="geocode-btn" onclick="geocodeVenueAddress()" style="padding:4px 10px;border-radius:7px;background:none;color:var(--text3);border:1px solid var(--border2);font-size:11px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">📍 Re-locate from address</button>
             </div>`}
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
             ${tog('Indoor verified','f-indoor-verified',v.indoor_verified)}
             ${tog('Pet menu','f-pet-menu',v.pet_menu)}
-            ${tog('Leash-free','f-leash-free',v.leash_free)}
           </div>
+          ${triState('Leash policy','f-leash-free',v.leash_free)}
           ${fld('Google Place ID',`<input id="f-place-id" value="${a(v.google_place_id||'')}" placeholder="ChIJ…" class="input-field">`)}
-          ${fld('TikTok Review URL', `<div style="display:flex;gap:8px;align-items:center;"><input id="f-review-url" value="${a(v.review_url||'')}" placeholder="https://www.tiktok.com/@user/video/..." class="input-field" style="flex:1;"><button type="button" onclick="const u=document.getElementById('f-review-url').value.trim();if(u)window.open(u,'_blank');" style="flex-shrink:0;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">Test ↗</button></div><div id="review-url-warning" style="display:none;margin-top:8px;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--orange);font-weight:600;">⚠ This video may have been deleted — update the link above</div>`)}
+          ${fld('TikTok Review URL', `<div style="display:flex;gap:8px;align-items:center;"><input id="f-review-url" value="${a(v.review_url||'')}" placeholder="https://www.tiktok.com/@user/video/..." class="input-field" style="flex:1;"><button type="button" onclick="const u=document.getElementById('f-review-url').value.trim();if(u)window.open(u,'_blank');" style="flex-shrink:0;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:'Urbanist',sans-serif;white-space:nowrap;">Test ↗</button></div><div id="review-url-warning" style="display:none;margin-top:8px;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--orange-text);font-weight:600;">⚠ This video may have been deleted — update the link above</div>`)}
           <div>
             <label class="field-label">Amenity Tags</label>
             <div style="display:flex;flex-wrap:wrap;gap:8px;">
@@ -1184,7 +1265,7 @@
           <div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
               <label class="field-label" style="margin:0;">Community Photos</label>
-              <button onclick="approveAllCommunityPhotos()" id="approve-all-btn" style="display:none;padding:3px 10px;border-radius:6px;background:var(--green);border:none;color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">✓ Approve all pending</button>
+              <button onclick="approveAllCommunityPhotos()" id="approve-all-btn" style="display:none;padding:3px 10px;border-radius:6px;background:var(--green-solid);border:none;color:var(--on-solid);font-size:11px;font-weight:600;cursor:pointer;font-family:'Urbanist',sans-serif;">✓ Approve all pending</button>
             </div>
             <div id="community-photos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,88px);gap:7px;max-height:240px;overflow-y:auto;padding:2px;">
               <span style="font-size:13px;color:var(--text3);">Loading…</span>
@@ -1203,7 +1284,7 @@
             <button onclick="deleteVenue()" class="btn-danger" style="width:100%;">Delete Venue</button>
           </div>
         </div>
-        <p id="panel-msg" style="font-size:12px;text-align:center;margin-top:10px;display:none;"></p>
+        <p id="panel-msg" role="status" aria-live="polite" style="font-size:12px;text-align:center;margin-top:10px;display:none;"></p>
       </div>`;
   }
 
@@ -1241,10 +1322,10 @@
       renderEditPanel();
       if (progressEl) progressEl.style.display = 'none';
       const newMsg = document.getElementById(`photo-msg-${slot}`);
-      if (newMsg) { newMsg.style.color = 'var(--green)'; newMsg.textContent = 'Photo saved ✓'; newMsg.style.display = 'block'; setTimeout(() => { if (newMsg) newMsg.style.display = 'none'; }, 3000); }
+      if (newMsg) { newMsg.style.color = 'var(--green-text)'; newMsg.textContent = 'Photo saved ✓'; newMsg.style.display = 'block'; setTimeout(() => { if (newMsg) newMsg.style.display = 'none'; }, 3000); }
     } catch (err) {
       if (progressEl) progressEl.style.display = 'none';
-      if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Upload failed: ' + (err.message || err); msgEl.style.display = 'block'; }
+      if (msgEl) { msgEl.style.color = 'var(--red-text)'; msgEl.textContent = 'Upload failed: ' + (err.message || err); msgEl.style.display = 'block'; }
     }
     input.value = '';
   }
@@ -1264,6 +1345,29 @@
       <label class="field-label" style="margin:0;">${label}</label>
       <label class="toggle"><input type="checkbox" id="${id}" ${checked?'checked':''}><span class="toggle-slider"></span></label>
     </div>`;
+  }
+
+  // Three-state control for a nullable boolean. Empty value === null in the
+  // DB, which is meaningfully different from false: "nobody has checked" vs
+  // "checked, and a leash is required".
+  const TRI_OPTIONS = [
+    { value: '',      text: 'Not set' },
+    { value: 'true',  text: 'Leash-free' },
+    { value: 'false', text: 'Leash required' },
+  ];
+  function triState(label, id, value) {
+    const current = value === true ? 'true' : value === false ? 'false' : '';
+    return `<div>
+      <label class="field-label">${label}</label>
+      <div class="tri" role="radiogroup" aria-label="${label}">
+        ${TRI_OPTIONS.map((o, i) => `<input type="radio" name="${id}" id="${id}-${i}" value="${o.value}" ${current === o.value ? 'checked' : ''}><label for="${id}-${i}">${o.text}</label>`).join('')}
+      </div>
+    </div>`;
+  }
+  function readTriState(id) {
+    const el = document.querySelector(`input[name="${id}"]:checked`);
+    if (!el) return null;
+    return el.value === '' ? null : el.value === 'true';
   }
 
   // ── Geocoding ─────────────────────────────────────────────────
@@ -1394,7 +1498,7 @@
       indoor_verified:    document.getElementById('f-indoor-verified').checked,
       last_verified_date: document.getElementById('f-last-verified').value || null,
       pet_menu:           document.getElementById('f-pet-menu').checked,
-      leash_free:         document.getElementById('f-leash-free').checked,
+      leash_free:         readTriState('f-leash-free'),
       google_place_id:    document.getElementById('f-place-id').value.trim() || null,
       review_url:         document.getElementById('f-review-url').value.trim() || null,
       lat:                parseFloat(document.getElementById('f-lat')?.value) || null,
@@ -1409,14 +1513,14 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     const { error } = await db.from('venues').update(updates).eq('id', selectedVenue.id);
     if (error) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Error — try again'; btn.style.background = 'var(--red)'; setTimeout(() => { btn.textContent = 'Save Changes'; btn.style.background = ''; }, 3000); }
+      if (btn) { btn.disabled = false; btn.textContent = 'Error — try again'; btn.style.background = 'var(--red-solid)'; btn.style.color = 'var(--on-solid)'; setTimeout(() => { btn.textContent = 'Save Changes'; btn.style.background = ''; btn.style.color = ''; }, 3000); }
       return;
     }
     patchVenue(selectedVenue.id, updates);
     renderStatsCard(); renderSidebar();
     if (venueListMode) renderVenueList();
     loadVenueMarkers();
-    if (btn) { btn.textContent = 'Saved ✓'; btn.style.background = 'var(--green)'; btn.style.color = '#fff'; setTimeout(() => { btn.textContent = 'Save Changes'; btn.style.background = ''; btn.style.color = ''; btn.disabled = false; }, 2000); }
+    if (btn) { btn.textContent = 'Saved ✓'; btn.style.background = 'var(--green-solid)'; btn.style.color = 'var(--on-solid)'; setTimeout(() => { btn.textContent = 'Save Changes'; btn.style.background = ''; btn.style.color = ''; btn.disabled = false; }, 2000); }
     showToast('✓ Changes saved');
   }
 
@@ -1455,8 +1559,8 @@
       const outline = pending ? 'outline:2.5px solid var(--orange);outline-offset:-2px;' : '';
       return `<div style="position:relative;width:88px;height:88px;border-radius:8px;overflow:hidden;flex-shrink:0;${outline}">
         <img src="${h(p.photo_url)}" onclick="openPhotoLightbox('${a(p.photo_url)}')" style="width:100%;height:100%;object-fit:cover;cursor:pointer;">
-        ${pending ? `<span style="position:absolute;top:4px;left:4px;padding:1px 5px;border-radius:5px;background:var(--orange);color:#fff;font-size:9px;font-weight:700;">PENDING</span>` : ''}
-        ${pending ? `<button onclick="approveCommunityPhoto(${p.id})" style="position:absolute;bottom:4px;right:4px;height:20px;padding:0 6px;border-radius:5px;background:var(--green);border:1.5px solid rgba(255,255,255,0.8);color:#fff;font-size:9px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Urbanist',sans-serif;">✓</button>` : ''}
+        ${pending ? `<span style="position:absolute;top:4px;left:4px;padding:1px 5px;border-radius:5px;background:var(--orange-solid);color:var(--on-solid);font-size:9px;font-weight:700;">PENDING</span>` : ''}
+        ${pending ? `<button onclick="approveCommunityPhoto(${p.id})" style="position:absolute;bottom:4px;right:4px;height:20px;padding:0 6px;border-radius:5px;background:var(--green-solid);border:1.5px solid rgba(255,255,255,0.8);color:var(--on-solid);font-size:9px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Urbanist',sans-serif;">✓</button>` : ''}
         <button onclick="removeCommunityPhoto(${p.id})" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.65);border:1.5px solid rgba(255,255,255,0.5);color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
       </div>`;
     }).join('');
@@ -1514,7 +1618,7 @@
   }
   function panelMsg(msg, isError = false) {
     const el = document.getElementById('panel-msg'); if (!el) return;
-    el.textContent = msg; el.style.color = isError ? 'var(--red)' : 'var(--green)'; el.style.display = 'block';
+    el.textContent = msg; el.style.color = isError ? 'var(--red-text)' : 'var(--green-text)'; el.style.display = 'block';
     setTimeout(() => { if (el) el.style.display = 'none'; }, 3000);
   }
 
@@ -1547,7 +1651,7 @@
     const updates = { status: 'live', last_verified_date: today() };
     const { error } = await db.from('venues').update(updates).in('id', ids);
     if (error) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Publish Selected'; btn.style.opacity = '1'; btn.style.background = 'var(--red)'; setTimeout(() => { if (btn) { btn.style.background = 'var(--green)'; btn.textContent = 'Publish Selected'; } }, 3000); }
+      if (btn) { btn.disabled = false; btn.textContent = 'Publish Selected'; btn.style.opacity = '1'; btn.style.background = 'var(--red-solid)'; setTimeout(() => { if (btn) { btn.style.background = 'var(--green-solid)'; btn.textContent = 'Publish Selected'; } }, 3000); }
       alert('Bulk publish failed: ' + error.message); return;
     }
     ids.forEach(id => patchVenue(id, updates));
@@ -1577,7 +1681,7 @@
     return amenityTags.map(t => `
       <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 14px;margin-bottom:7px;">
         <span style="font-size:14px;font-weight:600;color:var(--text);">${h(t.name)}</span>
-        <button onclick="deleteTag(${t.id},'${a(t.name)}')" style="font-size:13px;color:var(--text2);background:none;border:none;cursor:pointer;font-weight:500;padding:3px 7px;border-radius:6px;font-family:'Urbanist',sans-serif;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text2)'">Remove</button>
+        <button onclick="deleteTag(${t.id},'${a(t.name)}')" style="font-size:13px;color:var(--text2);background:none;border:none;cursor:pointer;font-weight:500;padding:3px 7px;border-radius:6px;font-family:'Urbanist',sans-serif;" onmouseover="this.style.color='var(--red-text)'" onmouseout="this.style.color='var(--text2)'">Remove</button>
       </div>`).join('');
   }
   async function addTag() {
@@ -1625,7 +1729,7 @@
               <span style="font-size:14px;font-weight:700;color:var(--text);">${h(r.venue_name)}</span>
               ${r.resolved
                 ? `<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:100px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);">Resolved</span>`
-                : `<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:100px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);">Open</span>`}
+                : `<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:100px;background:var(--orange-bg);color:var(--orange-text);border:1px solid var(--orange-border);">Open</span>`}
             </div>
             <p style="font-size:13px;color:var(--text);font-weight:500;margin-bottom:${r.note ? '3px' : '0'};">${h(r.reason)}</p>
             ${r.note ? `<p style="font-size:12px;color:var(--text2);font-style:italic;">"${h(r.note)}"</p>` : ''}
@@ -1653,7 +1757,7 @@
     document.getElementById('ap-status').value = 'pending';
     document.getElementById('ap-place-id').value = '';
     document.getElementById('ap-pet-menu').checked = false;
-    document.getElementById('ap-leash-free').checked = false;
+    document.getElementById('ap-leash-free-0').checked = true;  // back to "Not set"
     document.getElementById('ap-error').style.display = 'none';
     const btn = document.getElementById('ap-submit-btn');
     btn.disabled = false; btn.textContent = 'Add Place'; btn.style.background = '';
@@ -1685,7 +1789,7 @@
       dog_sizes_allowed:  document.getElementById('ap-dog-sizes').value,
       status,
       pet_menu:        document.getElementById('ap-pet-menu').checked,
-      leash_free:      document.getElementById('ap-leash-free').checked,
+      leash_free:      readTriState('ap-leash-free'),
       google_place_id: document.getElementById('ap-place-id').value.trim() || null,
       indoor_verified: false,
       is_active:       true,
@@ -1756,7 +1860,7 @@
     const errors = csvRows.filter(r => !r.name);
     const label = document.getElementById('csv-preview-label');
     label.textContent = `${csvRows.length} venue${csvRows.length!==1?'s':''} found${errors.length?` — ${errors.length} missing name`:''}`;
-    label.style.color = errors.length ? 'var(--orange)' : 'var(--text2)';
+    label.style.color = errors.length ? 'var(--orange-text)' : 'var(--text2)';
     const show = csvRows.slice(0, 5);
     document.getElementById('csv-preview-table').innerHTML =
       `<thead><tr><th>Name</th><th>Neighbourhood</th><th>Address</th><th>Seating</th><th>Dog Sizes</th></tr></thead>` +
@@ -1812,7 +1916,7 @@
             const placeId = results[0].place_id;
             await db.from('venues').update({ google_place_id: placeId }).eq('id', v.id);
             patchVenue(v.id, { google_place_id: placeId });
-            row.innerHTML = `<span style="color:var(--green);font-weight:700;flex-shrink:0;">✓</span><div><span style="font-weight:600;color:var(--text);">${h(v.name)}</span><br><span style="font-size:11px;color:var(--text3);">${h(placeId)}</span></div>`;
+            row.innerHTML = `<span style="color:var(--green-text);font-weight:700;flex-shrink:0;">✓</span><div><span style="font-weight:600;color:var(--text);">${h(v.name)}</span><br><span style="font-size:11px;color:var(--text3);">${h(placeId)}</span></div>`;
             found++;
           } else {
             row.innerHTML = `<span style="color:var(--text3);font-weight:700;flex-shrink:0;">–</span><div><span style="font-weight:600;color:var(--text2);">${h(v.name)}</span><br><span style="font-size:11px;color:var(--text3);">No match — add manually</span></div>`;
