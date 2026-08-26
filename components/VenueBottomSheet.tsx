@@ -243,13 +243,30 @@ export function VenueBottomSheet({ venue, onClose, isSaved, onToggleSave }: Prop
 
   function openGoogleMaps() {
     if (!venue) return;
-    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${venue.lat},${venue.lng}`).catch(() =>
+    // A bare lat/lng destination drops a pin with no business identity --
+    // Google just shows the coordinate, not the venue's name or listing
+    // (this reads as "landing on the street" rather than the store).
+    // destination_place_id makes Google resolve straight to the actual
+    // business -- correct floor/unit inside a mall included -- using the
+    // same google_place_id already stored for live hours/ratings. Per
+    // Google's own contract, destination_place_id must be paired with a
+    // destination value (name here), even though the place ID is what
+    // actually drives the match.
+    const destination = venue.google_place_id
+      ? `${encodeURIComponent(venue.name)}&destination_place_id=${venue.google_place_id}`
+      : `${venue.lat},${venue.lng}`;
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destination}`).catch(() =>
       Alert.alert("Couldn't open Google Maps", 'Make sure the app or a browser is available on your device.')
     );
   }
 
   function openWaze() {
     if (!venue) return;
+    // Waze's URL scheme has no Place ID equivalent -- only ll= (coordinate)
+    // or q= (free-text address/name) -- so it will always drop a plain
+    // street-level pin here, unlike the Google Maps case above. Don't swap
+    // this back to a name-based q= query: that's what originally sent Waze
+    // to a different, nearby venue instead of this one.
     Linking.openURL(`https://waze.com/ul?ll=${venue.lat},${venue.lng}&navigate=yes`).catch(() =>
       Alert.alert("Couldn't open Waze", 'Waze may not be installed on your device.')
     );

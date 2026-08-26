@@ -190,8 +190,8 @@ type CommunityPhoto = {
   - **Left**: tappable underlined address text (if set) — opens Google Maps pin view: `https://www.google.com/maps/search/?api=1&query=LAT,LNG`
   - **Right**: "Go now" pill button — always visible (uses lat/lng, works even if address is null)
 - Tapping "Go now" shows a native action sheet (iOS) or Alert (Android) with: Google Maps (directions) / Waze (navigation) / Cancel
-  - Google Maps: `https://www.google.com/maps/dir/?api=1&destination=LAT,LNG`
-  - Waze: `https://waze.com/ul?ll=LAT,LNG&navigate=yes`
+  - Google Maps: `https://www.google.com/maps/dir/?api=1&destination=NAME&destination_place_id=PLACE_ID` when `google_place_id` is set (lands on the actual business listing, not just a street coordinate) — falls back to `destination=LAT,LNG` if it isn't
+  - Waze: `https://waze.com/ul?ll=LAT,LNG&navigate=yes` — always lat/lng. Waze's URL scheme has no Place ID equivalent, so it always drops a plain coordinate pin; don't swap this to a name-based query, that's what originally sent Waze to the wrong nearby venue (see git history)
 
 ### Google Place ID
 - Stored in Supabase but not yet connected to any API
